@@ -15,13 +15,39 @@ class SimpleController extends GetxController {
 }
 
 class ReactiveController extends GetxController {
+  static ReactiveController get to => Get.find();
   RxInt counter = 0.obs;
+
+  @override
+  void onInit() {
+    once(counter, (_) {
+      print('once : $_이 처음으로 변경되었습니다.');
+    });
+    ever(counter, (_) {
+      print('ever : $_이 변경되었습니다.');
+    });
+    debounce(
+      counter,
+          (_) {
+        print('debounce : $_가 마지막으로 변경된 이후, 1초간 변경이 없습니다.');
+      },
+      time: Duration(seconds: 1),
+    );
+    interval(
+      counter,
+          (_) {
+        print('interval $_가 변경되는 중입니다.(1초마다 호출)');
+      },
+      time: Duration(seconds: 1),
+    );
+    super.onInit();
+  }
+
 
   void increase() {
     counter++;
   }
 }
-
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
