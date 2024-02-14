@@ -3,9 +3,20 @@ import 'package:get/get.dart';
 
 class TapController extends GetxController {
   var coordinates = 'Tap Somewhere'.obs;
+  var detachmentCoordinates = ''.obs;
+  var dragCoordinates = ''.obs; // Add this line for drag coordinates
 
   void updateCoordinates(String newCoordinates) {
     coordinates.value = newCoordinates;
+  }
+
+  void updateDetachmentCoordinates(String newCoordinates) {
+    detachmentCoordinates.value = newCoordinates;
+  }
+
+  // Add this method for updating drag coordinates
+  void updateDragCoordinates(String newCoordinates) {
+    dragCoordinates.value = newCoordinates;
   }
 }
 
@@ -16,25 +27,42 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Initialize your controller
     final TapController tapController = Get.put(TapController());
 
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: Text('GetX Tap Coordinates App'),
+          title: Text('GetX Dragging End Coordinates App'),
         ),
         body: GestureDetector(
           onTapDown: (TapDownDetails details) {
-            // Update the coordinates using the controller
             tapController.updateCoordinates(
-              'X: ${details.globalPosition.dx}, Y: ${details.globalPosition.dy}',
+              'Attach X: ${details.globalPosition.dx}, Y: ${details.globalPosition.dy}',
             );
           },
+          onPanUpdate: (DragUpdateDetails details) {
+            // Keep updating the drag coordinates as the user drags
+            tapController.updateDragCoordinates(
+              'Drag X: ${details.globalPosition.dx}, Y: ${details.globalPosition.dy}',
+            );
+          },
+          onPanEnd: (DragEndDetails details) {
+            // Use the last known drag position as the detachment coordinates
+            tapController.updateDetachmentCoordinates(tapController.dragCoordinates.value);
+          },
           child: Container(
-            color: Colors.blue, // To ensure GestureDetector is active
+            color: Colors.lightBlueAccent,
             alignment: Alignment.center,
-            child: Obx(() => Text(tapController.coordinates.value)), // Use Obx to listen to changes
+            child: Obx(() => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(tapController.coordinates.value), // Attach coordinates
+                SizedBox(height: 20), // Provide some spacing
+                Text(tapController.detachmentCoordinates.value), // Detach (end of drag) coordinates
+                SizedBox(height: 20), // Provide some spacing
+                Text(tapController.dragCoordinates.value), // Continuous drag coordinates
+              ],
+            )),
           ),
         ),
       ),
