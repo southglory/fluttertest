@@ -164,28 +164,74 @@ class SquareDetailsScreen extends StatelessWidget {
   final double width;
   final double height;
 
-  const SquareDetailsScreen({Key? key, required this.width, required this.height})
+  SquareDetailsScreen({Key? key, required this.width, required this.height})
       : super(key: key);
+
+  final TextEditingController _textController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true, // Ensure the keyboard does not cover the TextField
       appBar: AppBar(
         title: Text('Square Details'),
       ),
-      body: Center(
-        // Use a Container to visualize the square
-        child: Container(
-          width: width,
-          height: height,
-          color: Colors.green, // Set the color of the container to green
-          alignment: Alignment.center,
-          child: Text(
-            'Width: $width, Height: $height',
-            style: TextStyle(
-              color: Colors.white, // Ensure the text is readable on the green background
-              fontWeight: FontWeight.bold,
-            ),
+      body:  GestureDetector(
+        onTap: () {
+          // Dismiss the keyboard when the user taps outside of the TextField
+          FocusScope.of(context).unfocus();
+        },
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Add a sizedBox
+              SizedBox(height: 20),
+              // Add a container to visualize the square
+              Center(
+                // Use a Container to visualize the square
+                child: Container(
+                  width: width,
+                  height: height,
+                  color: Colors.green, // Set the color of the container to green
+                  alignment: Alignment.center,
+                  child: Text(
+                    // Reflects the text in the text field in real time.
+                    _textController.text, // Use the controller's text as the content of the container
+                    style: TextStyle(
+                      color: Colors.white, // Ensure the text is readable on the green background
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              // Add a button to capture the above container as an image
+              ElevatedButton(
+                onPressed: () {
+                  // Capture the container as an image
+                  // ...
+                },
+                child: Text('Capture Image, size of width: $width, height: $height'),
+              ),
+              // Add a Multiline TextField
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextField(
+                  controller: _textController, // Use the controller to control the text field
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Enter your comments',
+                  ),
+                  // Update the UI in real-time as the text changes
+                  onChanged: (value) {
+                    // Trigger a rebuild to update the text in the green container
+                    (context as Element).markNeedsBuild();
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
