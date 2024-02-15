@@ -78,9 +78,12 @@ class MyApp extends StatelessWidget {
 
           },
           onPanUpdate: (DragUpdateDetails details) {
+            // Apply grid to the details.localPosition to make the drag coordinates snap to the grid
+            final x = (details.localPosition.dx / 10).round() * 10;
+            final y = (details.localPosition.dy / 10).round() * 10;
             // Keep updating the drag coordinates and the end position as the user drags
-            tapController.updateDragCoordinates(details.localPosition);
-            tapController.updateEndingPoint(details.localPosition); // 마지막 위치를 업데이트합니다.
+            tapController.updateDragCoordinates(Offset(x.toDouble(), y.toDouble()));
+            tapController.updateEndingPoint(Offset(x.toDouble(), y.toDouble()));
           },
           onPanEnd: (DragEndDetails details) {
             // When the user stops dragging, notify the controller
@@ -171,8 +174,22 @@ class SquareDetailsScreen extends StatelessWidget {
         title: Text('Square Details'),
       ),
       body: Center(
-        child: Text('Width: $width, Height: $height'),
+        // Use a Container to visualize the square
+        child: Container(
+          width: width,
+          height: height,
+          color: Colors.green, // Set the color of the container to green
+          alignment: Alignment.center,
+          child: Text(
+            'Width: $width, Height: $height',
+            style: TextStyle(
+              color: Colors.white, // Ensure the text is readable on the green background
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+
