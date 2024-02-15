@@ -13,12 +13,22 @@ class TapController extends GetxController {
   // ending point
   Offset? end;
 
-  void updateCoordinates(String newCoordinates) {
-    startStr.value = newCoordinates;
+  void updateUI() {
+    // Calls GetxController's update method to update the UI
+    update();
   }
 
-  void updateDetachmentCoordinates(Offset newCoordinates) {
+  void reset() {
+    start = null;
+    drag = null;
+    end = null;
     isDrawing = false;
+    updateUI();
+  }
+
+  void notifyEnd() {
+    isDrawing = false;
+    updateUI();
   }
 
   // Add this method for updating drag coordinates
@@ -36,14 +46,17 @@ class TapController extends GetxController {
   void updateStartingPoint(Offset newStart) {
     startStr.value = newStart.toString();
     start = newStart;
+    updateUI();
   }
   void updateDragPoint(Offset newDrag) {
     dragStr.value = newDrag.toString();
     drag = newDrag;
+    updateUI();
   }
   void updateEndingPoint(Offset newEnd) {
     endStr.value = newEnd.toString();
     end = newEnd;
+    updateUI();
   }
 }
 
@@ -62,33 +75,53 @@ class MyApp extends StatelessWidget {
         ),
         body: GestureDetector(
           onTapDown: (TapDownDetails details) {
-            // tapController.updateCoordinates(
-            //   'Attach X: ${details.globalPosition.dx}, Y: ${details.globalPosition.dy}',
-            // );
+
           },
           onPanUpdate: (DragUpdateDetails details) {
             // Keep updating the drag coordinates and the end position as the user drags
-            tapController.updateDragCoordinates(details.globalPosition);
-            tapController.updateEndingPoint(details.globalPosition); // 마지막 위치를 업데이트합니다.
+            tapController.updateDragCoordinates(details.localPosition);
+            tapController.updateEndingPoint(details.localPosition); // 마지막 위치를 업데이트합니다.
           },
           onPanEnd: (DragEndDetails details) {
-            // 이제 tapController.end는 null이 아니어야 합니다. 안전하게 ! 연산자를 사용할 수 있습니다.
-            tapController.updateDetachmentCoordinates(tapController.end!);
+            // When the user stops dragging, notify the controller
+            tapController.notifyEnd();
           },
 
-          child: Container(
-            color: Colors.lightBlueAccent,
-            alignment: Alignment.center,
-            child: Obx(() => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text("Start: ${tapController.startStr.value}"), // Starting coordinates
-                SizedBox(height: 20), // Provide some spacing
-                Text("Drag: ${tapController.dragStr.value}"), // Drag coordinates
-                SizedBox(height: 20), // Provide some spacing
-                Text("End: ${tapController.endStr.value}"), // Ending coordinates
-              ],
-            )),
+          child: Stack(
+            children: [
+              Container(
+                color: Colors.lightBlueAccent,
+                alignment: Alignment.center,
+                child: GetBuilder<TapController>(
+                  builder: (_) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Start: ${_.startStr.value}"),
+                      SizedBox(height: 20),
+                      Text("Drag: ${_.dragStr.value}"),
+                      SizedBox(height: 20),
+                      Text("End: ${_.endStr.value}"),
+                    ],
+                  ),
+                ),
+              ),
+              GetBuilder<TapController>(
+                builder: (_) {
+                  final start = _.start;
+                  final end = _.end;
+                  print('start: $start, end: $end');
+                  if (start != null && end != null) {
+                    final rect = Rect.fromPoints(start, end);
+                    return CustomPaint(
+                      painter: RectanglePainter(rect: rect),
+                      child: Container(),
+                    );
+                  } else {
+                    return SizedBox.shrink();
+                  }
+                },
+              ),
+            ],
           ),
         ),
       ),
