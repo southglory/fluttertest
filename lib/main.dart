@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final TapController tapController = Get.put(TapController());
 
-    return MaterialApp(
+    return GetMaterialApp(
       home: Scaffold(
         appBar: AppBar(
           title: Text('GetX Dragging End Coordinates App'),
@@ -85,6 +85,14 @@ class MyApp extends StatelessWidget {
           onPanEnd: (DragEndDetails details) {
             // When the user stops dragging, notify the controller
             tapController.notifyEnd();
+
+            if (tapController.start != null && tapController.end != null) {
+              // Calculate the width and height of the rectangle
+              final width = (tapController.end!.dx - tapController.start!.dx).abs();
+              final height = (tapController.end!.dy - tapController.start!.dy).abs();
+              // Navigate to the SquareDetailsScreen and pass the width and height as arguments
+              Get.to(() => SquareDetailsScreen(width: width, height: height));
+            }
           },
 
           child: Stack(
@@ -146,4 +154,25 @@ class RectanglePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant RectanglePainter oldDelegate) => true;
+}
+
+
+class SquareDetailsScreen extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const SquareDetailsScreen({Key? key, required this.width, required this.height})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Square Details'),
+      ),
+      body: Center(
+        child: Text('Width: $width, Height: $height'),
+      ),
+    );
+  }
 }
