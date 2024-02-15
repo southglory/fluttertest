@@ -1,117 +1,149 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
-import 'dart:async';
-import 'dart:io';
-import 'package:gallery_saver/gallery_saver.dart';
+import 'package:get/get.dart'; // Ensure GetX is still used for dependency injection.
 
-void main() => runApp(MyApp());
+class TapController extends GetxController {
+  var startStr = 'Tap Somewhere'.obs;
+  var endStr = ''.obs;
+  var dragStr = ''.obs; // Add this line for drag coordinates
+  bool isDrawing = false;
+  // starting point
+  Offset? start;
+  // dragging point
+  Offset? drag;
+  // ending point
+  Offset? end;
 
-class MyApp extends StatefulWidget {
-  @override
-  _MyAppState createState() => _MyAppState();
+  void updateUI() {
+    // Calls GetxController's update method to update the UI
+    update();
+  }
+
+  void reset() {
+    start = null;
+    drag = null;
+    end = null;
+    isDrawing = false;
+    updateUI();
+  }
+
+  void notifyEnd() {
+    isDrawing = false;
+    updateUI();
+  }
+
+  // Add this method for updating drag coordinates
+  void updateDragCoordinates(Offset newCoordinates) {
+    if (!isDrawing) {
+      // If the user is not dragging, then the current drag coordinates are the starting point
+      updateStartingPoint(newCoordinates);
+    }
+    // Update the drag coordinates
+    updateDragPoint(newCoordinates);
+
+    isDrawing = true;
+  }
+
+  void updateStartingPoint(Offset newStart) {
+    startStr.value = newStart.toString();
+    start = newStart;
+    updateUI();
+  }
+  void updateDragPoint(Offset newDrag) {
+    dragStr.value = newDrag.toString();
+    drag = newDrag;
+    updateUI();
+  }
+  void updateEndingPoint(Offset newEnd) {
+    endStr.value = newEnd.toString();
+    end = newEnd;
+    updateUI();
+  }
 }
 
-class _MyAppState extends State<MyApp> {
-  final TextEditingController _textEditingController = TextEditingController();
-  final GlobalKey _globalKey = GlobalKey();
-  ui.Image? _capturedImage;
-  Uint8List? _imageBytes;
-  String _displayText = '';
-  Widget? _displayedImageWidget;
-
-  Future<void> _captureImage() async {
-    RenderRepaintBoundary boundary = _globalKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-    ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData != null) {
-      setState(() {
-        _capturedImage = image;
-        _imageBytes = byteData.buffer.asUint8List();
-        _displayedImageWidget = Image.memory(_imageBytes!);
-      });
-    }
-  }
-
-  Future<void> _saveImageToGallery() async {
-    if (_imageBytes == null) return;
-    final tempDir = await getTemporaryDirectory();
-    final file = await File('${tempDir.path}/image.png').writeAsBytes(_imageBytes!);
-    final result = await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
-    print("이미지 저장 성공: $result");
-  }
-
+void main() {
+  runApp(MyApp());
+}
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final TapController tapController = Get.put(TapController());
+
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: Text('Text and Image Processing')),
-        body: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Padding(
-                padding: EdgeInsets.all(8.0),
-                child: TextField(
-                  controller: _textEditingController,
-                  decoration: InputDecoration(hintText: 'Enter multiline text here'),
-                  keyboardType: TextInputType.multiline,
-                  maxLines: null,
-                  style: TextStyle(fontSize: 22, color: Colors.black),
-                ),
-              ),
-              RepaintBoundary(
-                key: _globalKey,
-                child: Container(
-                  padding: EdgeInsets.all(8.0),
-                  color: Colors.transparent,
-                  child: Text(
-                    _textEditingController.text,
-                    style: TextStyle(fontSize: 22, color: Colors.black),
-                  ),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Save the current text with line breaks
-                  setState(() {
-                    _displayText = _textEditingController.text;
-                  });
-                },
-                child: Text('Show Text'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  _captureImage();
-                },
-                child: Text('Capture and Show Image'),
-              ),
-              ElevatedButton(
-                onPressed: _saveImageToGallery,
-                child: Text('Save Image to Gallery'),
-              ),
-              if (_displayText.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(_displayText, // Display text with line breaks
-                      style: TextStyle(fontSize: 22, color: Colors.black)),
-                ),
-              if (_displayedImageWidget != null)
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Column(
+        appBar: AppBar(
+          title: Text('GetX Dragging End Coordinates App'),
+        ),
+        body: GestureDetector(
+          onTapDown: (TapDownDetails details) {
+
+          },
+          onPanUpdate: (DragUpdateDetails details) {
+            // Keep updating the drag coordinates and the end position as the user drags
+            tapController.updateDragCoordinates(details.localPosition);
+            tapController.updateEndingPoint(details.localPosition); // 마지막 위치를 업데이트합니다.
+          },
+          onPanEnd: (DragEndDetails details) {
+            // When the user stops dragging, notify the controller
+            tapController.notifyEnd();
+          },
+
+          child: Stack(
+            children: [
+              Container(
+                color: Colors.lightBlueAccent,
+                alignment: Alignment.center,
+                child: GetBuilder<TapController>(
+                  builder: (_) => Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _displayedImageWidget!,
-                      Text('Width: ${_capturedImage?.width}, Height: ${_capturedImage?.height}'),
+                      Text("Start: ${_.startStr.value}"),
+                      SizedBox(height: 20),
+                      Text("Drag: ${_.dragStr.value}"),
+                      SizedBox(height: 20),
+                      Text("End: ${_.endStr.value}"),
                     ],
                   ),
                 ),
+              ),
+              GetBuilder<TapController>(
+                builder: (_) {
+                  final start = _.start;
+                  final end = _.end;
+                  print('start: $start, end: $end');
+                  if (start != null && end != null) {
+                    final rect = Rect.fromPoints(start, end);
+                    return CustomPaint(
+                      painter: RectanglePainter(rect: rect),
+                      child: Container(),
+                    );
+                  } else {
+                    return SizedBox.shrink();
+                  }
+                },
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class RectanglePainter extends CustomPainter {
+  final Rect? rect;
+  RectanglePainter({this.rect});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (rect != null) {
+      final paint = Paint()
+        ..color = Colors.blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawRect(rect!, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant RectanglePainter oldDelegate) => true;
 }
