@@ -169,6 +169,10 @@ class SquareDetailsScreen extends StatelessWidget {
 
   final TextEditingController _textController = TextEditingController();
 
+  // default font size and weight
+  final double fontSizeDefault = 20;
+  final FontWeight fontWeightDefault = FontWeight.bold;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -191,6 +195,8 @@ class SquareDetailsScreen extends StatelessWidget {
               Center(
                 // Use a Container to visualize the square
                 child: Container(
+                  // padding insets
+                  padding: EdgeInsets.all(16),
                   width: width,
                   height: height,
                   color: Colors.green, // Set the color of the container to green
@@ -200,9 +206,21 @@ class SquareDetailsScreen extends StatelessWidget {
                     _textController.text, // Use the controller's text as the content of the container
                     style: TextStyle(
                       color: Colors.white, // Ensure the text is readable on the green background
-                      fontWeight: FontWeight.bold,
+                      fontWeight: fontWeightDefault,
                     ),
                     textAlign: TextAlign.center,
+                    overflow: TextOverflow.clip,
+                  ),
+                ),
+              ),
+              // A text label to show the text in the text field in real-time
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Text in the green container: \n${_textController.text}',
+                  style: TextStyle(
+                    fontSize: fontSizeDefault,
+                    fontWeight: fontWeightDefault,
                   ),
                 ),
               ),
