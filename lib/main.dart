@@ -175,7 +175,7 @@ class SquareDetailsScreen extends StatefulWidget {
 class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextEditingController _textController = TextEditingController();
   String formattedText = ""; // State variable for holding formatted text
-  late int maxLength;
+  int maxLength = 1; // State variable for holding the maximum length of the text
 
   final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
@@ -194,7 +194,6 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       height: 1.0,
     );
 
-    maxLength = 1000; // Initial high limit to not constrain input initially
     _textController.addListener(textChanged);
   }
 
@@ -207,123 +206,24 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
 
   void textChanged() {
     final String currentText = _textController.text;
-    formattedText = breakCharacterWithMeasurement(
-        currentText, textStyle, widget.width, widget.height, textAlignment);
-
-    // // Measure the current text width to potentially update maxLength
-    // TextPainter textPainter = TextPainter(
-    //   text: TextSpan(text: currentText, style: textStyle),
-    //   maxLines: 3,
-    //   textDirection: TextDirection.ltr,
-    // );
-    // textPainter.layout(maxWidth: double.infinity);
-    // final double textWidth = textPainter.width;
-    //
-    // // Check if the text width exceeds the container width
-    // if (textWidth < widget.width) {
-    //   setState(() {
-    //     maxLength = currentText.length + 1;
-    //   });
-    // } else {
-    //   setState(() {
-    //     maxLength = currentText.length - 1;
-    //   });
-    // }
+    // Format the text to fit the container
+    TextBreaker textBreaker = TextBreaker(
+      input: currentText, // Specify the input text
+      textStyle: textStyle, // Specify the text style
+      containerWidth: widget.width, // Specify container width
+      containerHeight: widget.height, // Specify container height
+      textAlign: textAlignment, // Specify text alignment
+    );
+    BreakTextResult result = textBreaker.breakCharacterWithMeasurement();
+    formattedText = result.text;
 
     // Update the state to display formatted text
     setState(() {
+      this.maxLength = formattedText.length> 0 ? formattedText.length - result.lineBreakCount : maxLength;
       this.formattedText = formattedText;
     });
   }
 
-  int calculateLinesCount(TextStyle style, double containerHeight) {
-    // Using a space character to measure the height might be more reliable as it should
-    // give us the height of an empty line of text, including leading.
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(text: ' ', style: style),
-      maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout(minWidth: 0, maxWidth: double.infinity);
-
-    // The height property acts as a multiplier to the font size.
-    double styleHeight = style.fontSize! * (style.height ?? 1.0);
-    // Measure the height of a space character as a proxy for line height.
-    double measuredHeight = textPainter.size.height;
-    print("measuredHeight: $measuredHeight");
-
-    // Regard the line height as the maximum of the measured height and the style height.
-    double lineHeight = measuredHeight > styleHeight ? measuredHeight : styleHeight;
-    print("lineHeight: $lineHeight");
-
-    // Calculate the number of lines that can fit in the container.
-    int linesCount = containerHeight ~/ lineHeight;
-    return linesCount;
-  }
-
-  String breakCharacterWithMeasurement(
-      String input, TextStyle textStyle, double containerWidth, double containerHeight, TextAlign textAlign) {
-    List<String> lines = [];
-    TextPainter textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      textAlign: textAlign,
-    );
-    List<String> words = input.split(' '); // Split the input into words.
-    String currentLine = '';
-    print("containerWidth: $containerWidth");
-    print("containerHeight: $containerHeight");
-    //
-    double textWidth;
-    double textWidthPadding = textStyle.fontSize! * 0.5;
-    // modify the containerHeight to be the multiple of the text height
-    int linesCount = calculateLinesCount(textStyle, containerHeight);
-    print("linesCount: $linesCount");
-    int currentLineCount = 0;
-
-    for (String word in words) {
-      // Handle each word
-      bool isFirstCharacterOfWord = true;
-      for (int i = 0; i < word.length; i++) {
-        // Handle each character in the word
-        String character = word[i];
-        String testLine = isFirstCharacterOfWord && currentLine.isNotEmpty ? "$currentLine $character" : "$currentLine$character";
-        textPainter.text = TextSpan(text: testLine, style: textStyle);
-        textPainter.layout(maxWidth: double.infinity);
-
-        textWidth = textPainter.width + textWidthPadding*2;
-        if (textWidth > containerWidth) {
-          if (!isFirstCharacterOfWord || currentLine.isNotEmpty) {
-            // If the line is not empty, or if it's not the first character of the word, add the current line to the lines list
-            lines.add(currentLine);
-            currentLineCount++;
-            if (currentLineCount >= linesCount) break; // Stop if the maximum number of lines is reached
-            currentLine = character; // Start a new line with the current character
-          } else {
-            // If it's the first character of the word and the line is empty
-            currentLine = character; // Add the character to the current line
-          }
-          isFirstCharacterOfWord = false;
-        } else {
-          // If the character fits, add it to the current line
-          currentLine = testLine;
-          isFirstCharacterOfWord = false;
-        }
-      }
-      // After processing a word, add a space if it's not the end of a line
-      if (currentLineCount < linesCount && !currentLine.endsWith(' ')) {
-        currentLine += ' ';
-      }
-
-      // Check if we've reached the maximum number of lines
-      if (currentLineCount >= linesCount) break;
-    }
-
-    // Add any remaining text in the currentLine to lines, if there's space
-    if (!currentLine.isEmpty && currentLineCount < linesCount) {
-      lines.add(currentLine.trim());
-    }
-
-    return lines.join('\n').trim();
-  }
 
 
   @override
@@ -399,3 +299,113 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
     );
   }
 }
+
+class BreakTextResult {
+  final String text;
+  final int lineBreakCount;
+
+  BreakTextResult(this.text, this.lineBreakCount);
+}
+
+class TextBreaker {
+  final String input;
+  final TextStyle textStyle;
+  final double containerWidth;
+  final double containerHeight;
+  final TextAlign textAlign;
+
+  TextBreaker({
+    required this.input,
+    required this.textStyle,
+    required this.containerWidth,
+    required this.containerHeight,
+    this.textAlign = TextAlign.left,
+  });
+
+  BreakTextResult breakCharacterWithMeasurement() {
+    List<String> lines = [];
+    TextPainter textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: textAlign,
+    );
+    List<String> words = input.split(' '); // Split the input into words.
+    String currentLine = '';
+    double textWidth;
+    double textWidthPadding = textStyle.fontSize! * 0.5;
+    int linesCount = calculateLinesCount(textStyle, containerHeight);
+    int currentLineCount = 0;
+
+    print("containerWidth: $containerWidth");
+    print("containerHeight: $containerHeight");
+
+    for (String word in words) {
+      // Handle each word
+      bool isFirstCharacterOfWord = true;
+      for (int i = 0; i < word.length; i++) {
+        // Handle each character in the word
+        String character = word[i];
+        String testLine = isFirstCharacterOfWord && currentLine.isNotEmpty ? "$currentLine $character" : "$currentLine$character";
+        textPainter.text = TextSpan(text: testLine, style: textStyle);
+        textPainter.layout(maxWidth: double.infinity);
+
+        textWidth = textPainter.width + textWidthPadding*2;
+        if (textWidth > containerWidth) {
+          if (!isFirstCharacterOfWord || currentLine.isNotEmpty) {
+            // If the line is not empty, or if it's not the first character of the word, add the current line to the lines list
+            lines.add(currentLine);
+            currentLineCount++;
+            if (currentLineCount >= linesCount) break; // Stop if the maximum number of lines is reached
+            currentLine = character; // Start a new line with the current character
+          } else {
+            // If it's the first character of the word and the line is empty
+            currentLine = character; // Add the character to the current line
+          }
+          isFirstCharacterOfWord = false;
+        } else {
+          // If the character fits, add it to the current line
+          currentLine = testLine;
+          isFirstCharacterOfWord = false;
+        }
+      }
+      // After processing a word, add a space if it's not the end of a line
+      if (currentLineCount < linesCount && !currentLine.endsWith(' ')) {
+        currentLine += ' ';
+      }
+
+      // Check if we've reached the maximum number of lines
+      if (currentLineCount >= linesCount) break;
+    }
+
+    // Add any remaining text in the currentLine to lines, if there's space
+    if (!currentLine.isEmpty && currentLineCount < linesCount) {
+      lines.add(currentLine.trim());
+    }
+
+    return BreakTextResult(lines.join('\n').trim(), lines.length-1);
+  }
+
+  int calculateLinesCount(TextStyle style, double containerHeight) {
+    // Using a space character to measure the height might be more reliable as it should
+    // give us the height of an empty line of text, including leading.
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: ' ', style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout(minWidth: 0, maxWidth: double.infinity);
+
+    // The height property acts as a multiplier to the font size.
+    double styleHeight = style.fontSize! * (style.height ?? 1.0);
+    // Measure the height of a space character as a proxy for line height.
+    double measuredHeight = textPainter.size.height;
+    print("measuredHeight: $measuredHeight");
+
+    // Regard the line height as the maximum of the measured height and the style height.
+    double lineHeight = measuredHeight > styleHeight ? measuredHeight : styleHeight;
+    print("lineHeight: $lineHeight");
+
+    // Calculate the number of lines that can fit in the container.
+    int linesCount = containerHeight ~/ lineHeight;
+    return linesCount;
+  }
+}
+
