@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart'; // Ensure GetX is still used for dependency injection.
 
 class TapController extends GetxController {
@@ -160,100 +161,241 @@ class RectanglePainter extends CustomPainter {
 }
 
 
-class SquareDetailsScreen extends StatelessWidget {
+class SquareDetailsScreen extends StatefulWidget {
   final double width;
   final double height;
 
   SquareDetailsScreen({Key? key, required this.width, required this.height})
       : super(key: key);
 
-  final TextEditingController _textController = TextEditingController();
+  @override
+  _SquareDetailsScreenState createState() => _SquareDetailsScreenState();
+}
 
-  // default font size and weight
+class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
+  final TextEditingController _textController = TextEditingController();
+  String formattedText = ""; // State variable for holding formatted text
+  late int maxLength;
+
   final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
+
+  // Initialize textStyle using the default font size and weight
+  late TextStyle textStyle;
+  final TextAlign textAlignment = TextAlign.center;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize textStyle here to use it in textChanged
+    textStyle = TextStyle(
+      fontSize: fontSizeDefault,
+      fontWeight: fontWeightDefault,
+      height: 1.0,
+    );
+
+    maxLength = 1000; // Initial high limit to not constrain input initially
+    _textController.addListener(textChanged);
+  }
+
+  @override
+  void dispose() {
+    _textController.removeListener(textChanged);
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void textChanged() {
+    final String currentText = _textController.text;
+    formattedText = breakCharacterWithMeasurement(
+        currentText, textStyle, widget.width, widget.height, textAlignment);
+
+    // // Measure the current text width to potentially update maxLength
+    // TextPainter textPainter = TextPainter(
+    //   text: TextSpan(text: currentText, style: textStyle),
+    //   maxLines: 3,
+    //   textDirection: TextDirection.ltr,
+    // );
+    // textPainter.layout(maxWidth: double.infinity);
+    // final double textWidth = textPainter.width;
+    //
+    // // Check if the text width exceeds the container width
+    // if (textWidth < widget.width) {
+    //   setState(() {
+    //     maxLength = currentText.length + 1;
+    //   });
+    // } else {
+    //   setState(() {
+    //     maxLength = currentText.length - 1;
+    //   });
+    // }
+
+    // Update the state to display formatted text
+    setState(() {
+      this.formattedText = formattedText;
+    });
+  }
+
+  int calculateLinesCount(TextStyle style, double containerHeight) {
+    // Using a space character to measure the height might be more reliable as it should
+    // give us the height of an empty line of text, including leading.
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: ' ', style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout(minWidth: 0, maxWidth: double.infinity);
+
+    // The height property acts as a multiplier to the font size.
+    double styleHeight = style.fontSize! * (style.height ?? 1.0);
+    // Measure the height of a space character as a proxy for line height.
+    double measuredHeight = textPainter.size.height;
+    print("measuredHeight: $measuredHeight");
+
+    // Regard the line height as the maximum of the measured height and the style height.
+    double lineHeight = measuredHeight > styleHeight ? measuredHeight : styleHeight;
+    print("lineHeight: $lineHeight");
+
+    // Calculate the number of lines that can fit in the container.
+    int linesCount = containerHeight ~/ lineHeight;
+    return linesCount;
+  }
+
+  String breakCharacterWithMeasurement(
+      String input, TextStyle textStyle, double containerWidth, double containerHeight, TextAlign textAlign) {
+    List<String> lines = [];
+    TextPainter textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: textAlign,
+    );
+    List<String> words = input.split(' '); // Split the input into words.
+    String currentLine = '';
+    print("containerWidth: $containerWidth");
+    print("containerHeight: $containerHeight");
+    //
+    double textWidth;
+    double textWidthPadding = textStyle.fontSize! * 0.5;
+    // modify the containerHeight to be the multiple of the text height
+    int linesCount = calculateLinesCount(textStyle, containerHeight);
+    print("linesCount: $linesCount");
+    int currentLineCount = 0;
+
+    for (String word in words) {
+      // Handle each word
+      bool isFirstCharacterOfWord = true;
+      for (int i = 0; i < word.length; i++) {
+        // Handle each character in the word
+        String character = word[i];
+        String testLine = isFirstCharacterOfWord && currentLine.isNotEmpty ? "$currentLine $character" : "$currentLine$character";
+        textPainter.text = TextSpan(text: testLine, style: textStyle);
+        textPainter.layout(maxWidth: double.infinity);
+
+        textWidth = textPainter.width + textWidthPadding*2;
+        if (textWidth > containerWidth) {
+          if (!isFirstCharacterOfWord || currentLine.isNotEmpty) {
+            // If the line is not empty, or if it's not the first character of the word, add the current line to the lines list
+            lines.add(currentLine);
+            currentLineCount++;
+            if (currentLineCount >= linesCount) break; // Stop if the maximum number of lines is reached
+            currentLine = character; // Start a new line with the current character
+          } else {
+            // If it's the first character of the word and the line is empty
+            currentLine = character; // Add the character to the current line
+          }
+          isFirstCharacterOfWord = false;
+        } else {
+          // If the character fits, add it to the current line
+          currentLine = testLine;
+          isFirstCharacterOfWord = false;
+        }
+      }
+      // After processing a word, add a space if it's not the end of a line
+      if (currentLineCount < linesCount && !currentLine.endsWith(' ')) {
+        currentLine += ' ';
+      }
+
+      // Check if we've reached the maximum number of lines
+      if (currentLineCount >= linesCount) break;
+    }
+
+    // Add any remaining text in the currentLine to lines, if there's space
+    if (!currentLine.isEmpty && currentLineCount < linesCount) {
+      lines.add(currentLine.trim());
+    }
+
+    return lines.join('\n').trim();
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true, // Ensure the keyboard does not cover the TextField
-      appBar: AppBar(
-        title: Text('Square Details'),
-      ),
-      body:  GestureDetector(
-        onTap: () {
-          // Dismiss the keyboard when the user taps outside of the TextField
-          FocusScope.of(context).unfocus();
-        },
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Add a sizedBox
-              SizedBox(height: 20),
-              // Add a container to visualize the square
-              Center(
-                // Use a Container to visualize the square
-                child: Container(
-                  // padding insets
-                  padding: EdgeInsets.all(16),
-                  width: width,
-                  height: height,
-                  color: Colors.green, // Set the color of the container to green
-                  alignment: Alignment.center,
-                  child: Text(
-                    // Reflects the text in the text field in real time.
-                    _textController.text, // Use the controller's text as the content of the container
-                    style: TextStyle(
-                      color: Colors.white, // Ensure the text is readable on the green background
-                      fontWeight: fontWeightDefault,
-                    ),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.clip,
-                  ),
-                ),
-              ),
-              // A text label to show the text in the text field in real-time
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Text in the green container: \n${_textController.text}',
-                  style: TextStyle(
-                    fontSize: fontSizeDefault,
-                    fontWeight: fontWeightDefault,
-                  ),
-                ),
-              ),
-              // Add a button to capture the above container as an image
-              ElevatedButton(
-                onPressed: () {
-                  // Capture the container as an image
-                  // ...
-                },
-                child: Text('Capture Image, size of width: $width, height: $height'),
-              ),
-              // Add a Multiline TextField
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextField(
-                  controller: _textController, // Use the controller to control the text field
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Enter your comments',
-                  ),
-                  // Update the UI in real-time as the text changes
-                  onChanged: (value) {
-                    // Trigger a rebuild to update the text in the green container
-                    (context as Element).markNeedsBuild();
+      appBar: AppBar(title: Text('Square Details')),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Divider(),
+            Text(
+              'Text Sticker',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            // button to capture the green container as an image
+            ButtonBar(
+              alignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // Capture the green container as an image
+                    print('Capture the green container as an image');
                   },
+                  // Text to display in the button and width, height of the green container
+                  child: Text('Capture Image, ${widget.width}x${widget.height}'),
                 ),
+              ],
+            ),
+
+            Container(
+              width: widget.width,
+              height: widget.height,
+              color: Colors.green,
+              alignment: Alignment.center,
+              child: Text(
+                formattedText, // Display the formatted text here
+                style: textStyle,
+                textAlign: textAlignment,
               ),
-            ],
-          ),
+            ),
+            Divider(),
+            Text(
+              'Formatted Text:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Container(
+              width: double.infinity,
+              child: Text(formattedText, style: textStyle,textAlign: textAlignment),
+            ),
+            Divider(),
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _textController,
+                maxLength: maxLength,
+                // To allow for unlimited lines, set maxLines to null.
+                // If you want to limit the number of lines, set maxLines to an integer value greater than 1.
+                maxLines: null,
+                keyboardType: TextInputType.multiline, // Set the keyboard type to multiline
+                textInputAction: TextInputAction.newline, // Set the input action to support newline for multiline input
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Enter your comments',
+                ),
+                style: textStyle, // Apply the specified textStyle to the TextField
+                // Optional: Remove the maxLength restriction while typing (but still show the counter)
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
