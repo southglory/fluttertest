@@ -251,7 +251,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               color: Colors.green,
               alignment: Alignment.center,
               child: Text(
-                formattedText, // Display the formatted text here
+                rareText, // Display the rare text here
                 style: textStyle,
                 textAlign: textAlignment,
               ),
@@ -263,7 +263,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
-              child: Text(rareText, // Display the rare text here
+              child: Text(formattedText, // Display the formatted text here
                   style: textStyle, textAlign: textAlignment),
             ),
             Divider(),
@@ -337,17 +337,17 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   void _handleTextChange() {
     String text = widget.controller.text;
 
-    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. \n"
         "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
     // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
     String rareText = "$text (${LoremIpsum})";
 
     // 현재 텍스트에서 수동 및 자동 줄바꿈 위치 찾기
-    List<int> manualBreaks = _findManualLineBreaks(text);
-    List<int> autoBreaks = _estimateAutomaticLineBreaks(text);
+    List<int> manualBreaks = _findManualLineBreaks(rareText);
+    List<int> autoBreaks = _estimateAutomaticLineBreaks(rareText);
 
     // 글자수 제한으로 인한 종료 위치 찾기
-    int cutoffPosition = _findCutoffPosition(text, widget.maxLength);
+    int cutoffPosition = _findCutoffPosition(rareText, widget.maxLength);
     print("수동 줄바꿈 위치: $manualBreaks");
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
