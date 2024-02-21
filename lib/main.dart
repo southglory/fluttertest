@@ -352,11 +352,11 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
 
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = estimateAndInsertLineBreaks(
-        maxLineBreakResult.formattedText, maxLineBreakResult.allBreaks, widget.textStyle!, widget.width);
+        maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions, widget.textStyle!, widget.width);
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
     LineBreakResult maxLineBreakResultFinal = restrictTextLines(
-        lineBreakResult.formattedText, lineBreakResult.allBreaks, maxLines);
+        lineBreakResult.formattedText, lineBreakResult.breakPositions, maxLines);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
     widget.onTextChanged(rareText, maxLineBreakResultFinal.formattedText);
@@ -406,23 +406,18 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
 
   LineBreakResult estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
     // Placeholder for estimating automatic line breaks. This should be replaced with your actual logic.
-    List<int> autoBreaks = _estimateAutomaticLineBreaks(text, textStyle, containerWidth);
+    List<int> autoBreaks = _estimateAutomaticLineBreaks(text, manualBreaks, textStyle, containerWidth);
 
     // Inserting line breaks based on the estimated positions
-    String formattedText = _insertLineBreaks(text, autoBreaks);
+    LineBreakResult formattedTextWithBreaks = _insertLineBreaks(text, autoBreaks);
 
-    return LineBreakResult(autoBreaks, formattedText);
+    return LineBreakResult(formattedTextWithBreaks.breakPositions, formattedTextWithBreaks.formattedText);
   }
 
-  List<int> _estimateAutomaticLineBreaks(String text, TextStyle textStyle, double containerWidth) {
-    // 복잡한 로직 구현 필요
+  List<int> _estimateAutomaticLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
+    // 복잡한 로직 구현 필요. 여기서는 단순히 자동 줄바꿈 위치를 반환
+
     return [];
-  }
-
-  int _findCutoffPosition(String text) {
-    // 복잡한 로직 구현 필요
-    // 글자 수 제한 기준: 특정 줄을 넘어가지 않도록 설정
-    return text.length;
   }
 
   int _getMaxLines(double containerHeight, TextStyle style) {
@@ -442,7 +437,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   }
 
   LineBreakResult restrictTextLines(String text, List<int> breakPositions, int maxLines) {
-    List<int> adjustedBreakPositions = breakPositions;
+    List<int> adjustedBreakPositions = List<int>.from(breakPositions);
     String adjustedText = text;
     if (breakPositions.length > maxLines) {
       // 최대 줄 수를 넘어가면, 줄바꿈 위치를 조정
@@ -456,20 +451,30 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return LineBreakResult(adjustedBreakPositions, adjustedText);
   }
 
-  String _insertLineBreaks(String text, List<int> breakPositions) {
+  LineBreakResult _insertLineBreaks(String text, List<int> breakPositions) {
     List<String> charList = text.split('');
-    for (int breakIndex in breakPositions.reversed) {
+    List<int> adjustedBreakPositions = List<int>.from(breakPositions);
+    int offset = 0;
+
+    for (int i = 0; i < breakPositions.length; i++) {
+      int breakIndex = breakPositions[i] + offset;
       if (breakIndex < charList.length) {
         charList.insert(breakIndex, '\n');
+        offset++; // 다음 줄바꿈 위치 조정
+        // 모든 이후의 줄바꿈 위치를 1씩 증가시켜 조정
+        for (int j = i + 1; j < adjustedBreakPositions.length; j++) {
+          adjustedBreakPositions[j] += 1;
+        }
       }
     }
-    return charList.join('');
+
+    return LineBreakResult(adjustedBreakPositions, charList.join(''));
   }
 }
 
 class LineBreakResult {
-  final List<int> allBreaks;
+  final List<int> breakPositions;
   final String formattedText;
 
-  LineBreakResult(this.allBreaks, this.formattedText);
+  LineBreakResult(this.breakPositions, this.formattedText);
 }
