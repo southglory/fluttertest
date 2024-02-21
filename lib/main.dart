@@ -348,14 +348,14 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
 
     // 최대 줄 수를 예상하고, 수동 줄바꿈에 의한 줄 수가 최대 줄 수를 넘어가지 않도록 rareText를 우선 제한. 자동 줄바꿈 계산 부하를 줄이기 위해 먼저 적용한 것.
     int maxLines = _getMaxLines(widget.height, widget.textStyle!);
-    LineBreakResult maxLineBreakResult = restrictTextLines(rareText, manualBreaks, maxLines);
+    LineBreakResult maxLineBreakResult = _restrictTextLines(rareText, manualBreaks, maxLines);
 
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
-    LineBreakResult lineBreakResult = estimateAndInsertLineBreaks(
+    LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
         maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions, widget.textStyle!, widget.width);
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
-    LineBreakResult maxLineBreakResultFinal = restrictTextLines(
+    LineBreakResult maxLineBreakResultFinal = _restrictTextLines(
         lineBreakResult.formattedText, lineBreakResult.breakPositions, maxLines);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
@@ -404,7 +404,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return breaks;
   }
 
-  LineBreakResult estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
+  LineBreakResult _estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
     // Placeholder for estimating automatic line breaks. This should be replaced with your actual logic.
     List<int> autoBreaks = _estimateAutomaticLineBreaks(text, manualBreaks, textStyle, containerWidth);
 
@@ -416,6 +416,38 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
 
   List<int> _estimateAutomaticLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
     // 복잡한 로직 구현 필요. 여기서는 단순히 자동 줄바꿈 위치를 반환
+    // 문장에서 탭을 공백으로 대체
+    String replacedText = _replaceTabsWithSpaces(text);
+    // 문장을 단어로 분리. 함수를 사용하지 않음. 정규 표현식을 사용함.
+    // List<String> wordsAndSpaces = replacedText.split(' ');
+    // // 여기서는 단어와 공백을 분리하는 데 사용할 수 있는 함수를 사용하여 단어와 공백을 분리함.
+    List<String> wordsAndSpaces = _splitTextIntoWordsAndSpaces(text);
+
+    // 리스트의 각 문자열 요소의 너비를 계산
+    List<double> wordWidths = wordsAndSpaces.map((word) {
+      TextPainter textPainter = TextPainter(
+        text: TextSpan(text: word, style: textStyle),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: double.infinity);
+      return textPainter.width;
+    }).toList();
+    print('wordWidths: $wordWidths');
+    // 두번째 단어부터 세 번째 단어만 너비 합산
+    double sum = wordWidths.sublist(3, 6).fold(0, (prev, element) => prev + element);
+    print('sum: $sum');
+
+    // 맨 앞 3단어만 합침.
+    // 단어를 합칠 때 공백을 추가해야함. 정규 표현식을 사용함
+    String firstThreeWords = wordsAndSpaces.sublist(3, 6).join('');
+    print('firstThreeWords: $firstThreeWords');
+    // 맨 앞 3단어의 너비 계산
+    TextPainter textPainter = TextPainter(
+      text: TextSpan(text: firstThreeWords, style: textStyle),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: double.infinity);
+    print('firstThreeWords width: ${textPainter.width}');
 
     return [];
   }
@@ -436,7 +468,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return maxLines;
   }
 
-  LineBreakResult restrictTextLines(String text, List<int> breakPositions, int maxLines) {
+  LineBreakResult _restrictTextLines(String text, List<int> breakPositions, int maxLines) {
     List<int> adjustedBreakPositions = List<int>.from(breakPositions);
     String adjustedText = text;
     if (breakPositions.length > maxLines) {
@@ -469,6 +501,46 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     }
 
     return LineBreakResult(adjustedBreakPositions, charList.join(''));
+  }
+
+  // Expected: Input: "a bc" => Words: [a, bc]
+  // Expected: Input: "a  bc  " => Words: [a, , , bc, , ]
+  // Expected: Input: "a\tbc" => Words: [a,     , bc]
+  // Expected: Input: "" => Words: [""]
+  List<String> _splitTextIntoWordsAndSpaces(String input, {int spacesPerTab = 4}) {
+    // First, replace tabs with spaces
+    input = _replaceTabsWithSpaces(input, spacesPerTab: spacesPerTab);
+
+    List<String> segments = [];
+    String currentSegment = '';
+
+    for (var i = 0; i < input.length; i++) {
+      String char = input[i];
+
+      if (char != ' ') {
+        currentSegment += char; // Accumulate non-space characters
+      } else {
+        if (currentSegment.isNotEmpty) {
+          segments.add(currentSegment); // Add non-space segment
+          currentSegment = '';
+        }
+        segments.add(' '); // Treat space as a separate segment. select '' or ' ' based on requirement
+      }
+    }
+
+    if (currentSegment.isNotEmpty) {
+      segments.add(currentSegment); // Add any remaining non-space segment
+    }
+
+    print('segments: $segments');
+    return segments;
+  }
+
+  // Replace each tab with a specified number of spaces
+  String _replaceTabsWithSpaces(String input, {int spacesPerTab = 4}) {
+    // Replace each tab with a specified number of spaces
+    String spaces = List.filled(spacesPerTab, ' ').join('');
+    return input.replaceAll('\t', spaces);
   }
 }
 
