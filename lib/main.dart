@@ -184,7 +184,6 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextEditingController _textController = TextEditingController();
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
-  int maxLength =1; // State variable for holding the maximum length of the text
 
   final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
@@ -251,7 +250,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               color: Colors.green,
               alignment: Alignment.center,
               child: Text(
-                formattedText, // Display the formatted text here
+                rareText, // Display the rare text here
                 style: textStyle,
                 textAlign: textAlignment,
               ),
@@ -263,7 +262,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
-              child: Text(rareText, // Display the rare text here
+              child: Text(formattedText, // Display the formatted text here
                   style: textStyle, textAlign: textAlignment),
             ),
             Divider(),
@@ -337,22 +336,26 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   void _handleTextChange() {
     String text = widget.controller.text;
 
-    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. \n"
         "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
     // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
     String rareText = "$text (${LoremIpsum})";
 
     // 현재 텍스트에서 수동 및 자동 줄바꿈 위치 찾기
-    List<int> manualBreaks = _findManualLineBreaks(text);
-    List<int> autoBreaks = _estimateAutomaticLineBreaks(text);
+    List<int> manualBreaks = _findManualLineBreaks(rareText);
+    List<int> autoBreaks = _estimateAutomaticLineBreaks(rareText);
 
     // 글자수 제한으로 인한 종료 위치 찾기
-    int cutoffPosition = _findCutoffPosition(text, widget.maxLength);
+    int cutoffPosition = _findCutoffPosition(rareText, widget.maxLength);
     print("수동 줄바꿈 위치: $manualBreaks");
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
 
-    String formattedText = rareText;
+    // formattedText의 자동 줄바꿈 위치(autoBreaks) 에 \n 삽입
+    String formattedText = insertLineBreaks(rareText, autoBreaks);
+
+    // 글자수 제한에 따라 텍스트 자르기
+    formattedText = restrictTextLength(formattedText, widget.maxLength);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
     widget.onTextChanged(rareText, formattedText);
@@ -407,5 +410,19 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   int _findCutoffPosition(String text, int maxLength) {
     // 텍스트가 maxLength를 초과하는 경우, 초과하는 부분을 자르고 그 위치를 반환
     return text.length > maxLength ? maxLength : text.length;
+  }
+
+  String insertLineBreaks(String text, List<int> breakPositions) {
+    List<String> charList = text.split('');
+    for (int breakIndex in breakPositions.reversed) {
+      if (breakIndex < charList.length) {
+        charList.insert(breakIndex, '\n');
+      }
+    }
+    return charList.join('');
+  }
+
+  String restrictTextLength(String text, int maxLength) {
+    return text.length > maxLength ? text.substring(0, maxLength) : text;
   }
 }
