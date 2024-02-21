@@ -201,17 +201,17 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       fontWeight: fontWeightDefault,
       height: 1.0,
     );
-    _textController.addListener(() {
-      setState(() {
-        // 여기에서 formattedText를 업데이트하는 로직을 구현하세요.
-        // 예시에서는 단순히 입력된 텍스트를 formattedText로 설정합니다.
-        formattedText = _textController.text;
-      });
-    });
+    _textController.addListener(textChanged);
+  }
+
+  void textChanged() {
+    // 여기에서 formattedText를 업데이트하지 않고,
+    // 대신 _LineBreaksTrackingTextFieldState 내부에서 처리합니다.
   }
 
   @override
   void dispose() {
+    _textController.removeListener(textChanged);
     _textController.dispose();
     super.dispose();
   }
@@ -276,6 +276,12 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 maxLengthEnforcement: MaxLengthEnforcement.none,
+                onTextChanged: (newText) {
+                  // 여기에서 formattedText를 업데이트합니다.
+                  setState(() {
+                    formattedText = newText;
+                  });
+                },
               ),
             ),
           ],
@@ -285,6 +291,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   }
 }
 
+// 상위 위젯에 대한 콜백 함수 타입을 정의합니다.
+typedef OnTextChanged = void Function(String newText);
 
 class LineBreaksTrackingTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -294,6 +302,7 @@ class LineBreaksTrackingTextField extends StatefulWidget {
   final TextInputType keyboardType;
   final TextInputAction textInputAction;
   final MaxLengthEnforcement maxLengthEnforcement;
+  final OnTextChanged onTextChanged; // 상위 위젯으로 텍스트 변경 사항을 전달하기 위한 콜백
 
   LineBreaksTrackingTextField({
     Key? key,
@@ -304,6 +313,7 @@ class LineBreaksTrackingTextField extends StatefulWidget {
     this.keyboardType = TextInputType.multiline,
     this.textInputAction = TextInputAction.newline,
     this.maxLengthEnforcement = MaxLengthEnforcement.none,
+    required this.onTextChanged, // 콜백 함수를 생성자 파라미터로 추가
   }) : super(key: key);
 
   @override
@@ -323,6 +333,12 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     print("수동 줄바꿈 위치: $manualBreaks");
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
+
+    // 여기서 사용자 입력 앞에 "(test)"를 추가합니다.
+    String newText = "(test) $text";
+
+    // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
+    widget.onTextChanged(newText);
   }
 
   @override
