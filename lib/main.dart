@@ -184,7 +184,6 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextEditingController _textController = TextEditingController();
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
-  int maxLength =1; // State variable for holding the maximum length of the text
 
   final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
@@ -352,7 +351,11 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
 
-    String formattedText = rareText;
+    // formattedText의 자동 줄바꿈 위치(autoBreaks) 에 \n 삽입
+    String formattedText = insertLineBreaks(rareText, autoBreaks);
+
+    // 글자수 제한에 따라 텍스트 자르기
+    formattedText = restrictTextLength(formattedText, widget.maxLength);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
     widget.onTextChanged(rareText, formattedText);
@@ -407,5 +410,19 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   int _findCutoffPosition(String text, int maxLength) {
     // 텍스트가 maxLength를 초과하는 경우, 초과하는 부분을 자르고 그 위치를 반환
     return text.length > maxLength ? maxLength : text.length;
+  }
+
+  String insertLineBreaks(String text, List<int> breakPositions) {
+    List<String> charList = text.split('');
+    for (int breakIndex in breakPositions.reversed) {
+      if (breakIndex < charList.length) {
+        charList.insert(breakIndex, '\n');
+      }
+    }
+    return charList.join('');
+  }
+
+  String restrictTextLength(String text, int maxLength) {
+    return text.length > maxLength ? text.substring(0, maxLength) : text;
   }
 }
