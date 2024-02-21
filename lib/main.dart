@@ -346,16 +346,17 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     List<int> autoBreaks = _estimateAutomaticLineBreaks(rareText);
 
     // 글자수 제한으로 인한 종료 위치 찾기
-    int cutoffPosition = _findCutoffPosition(rareText, widget.maxLength);
+    int cutoffPosition = _findCutoffPosition(rareText);
+
     print("수동 줄바꿈 위치: $manualBreaks");
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
 
     // formattedText의 자동 줄바꿈 위치(autoBreaks) 에 \n 삽입
-    String formattedText = insertLineBreaks(rareText, autoBreaks);
+    String formattedText = _insertLineBreaks(rareText, autoBreaks);
 
     // 글자수 제한에 따라 텍스트 자르기
-    formattedText = restrictTextLength(formattedText, widget.maxLength);
+    formattedText = _restrictTextLength(formattedText, cutoffPosition);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
     widget.onTextChanged(rareText, formattedText);
@@ -407,12 +408,12 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return [];
   }
 
-  int _findCutoffPosition(String text, int maxLength) {
-    // 텍스트가 maxLength를 초과하는 경우, 초과하는 부분을 자르고 그 위치를 반환
-    return text.length > maxLength ? maxLength : text.length;
+  int _findCutoffPosition(String text) {
+    // 복잡한 로직 구현 필요
+    return text.length;
   }
 
-  String insertLineBreaks(String text, List<int> breakPositions) {
+  String _insertLineBreaks(String text, List<int> breakPositions) {
     List<String> charList = text.split('');
     for (int breakIndex in breakPositions.reversed) {
       if (breakIndex < charList.length) {
@@ -422,7 +423,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return charList.join('');
   }
 
-  String restrictTextLength(String text, int maxLength) {
+  String _restrictTextLength(String text, int maxLength) {
     return text.length > maxLength ? text.substring(0, maxLength) : text;
   }
 }
