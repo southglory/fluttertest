@@ -182,6 +182,7 @@ class SquareDetailsScreen extends StatefulWidget {
 
 class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextEditingController _textController = TextEditingController();
+  String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
   int maxLength =1; // State variable for holding the maximum length of the text
 
@@ -262,7 +263,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
-              child: Text(formattedText,
+              child: Text(rareText, // Display the rare text here
                   style: textStyle, textAlign: textAlignment),
             ),
             Divider(),
@@ -272,14 +273,18 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                 controller: _textController,
                 maxLength: 1000,
                 labelText: 'Enter Text',
-                style: textStyle,
+                width: 300,
+                height: 100,
+                textStyle: textStyle,
+                textAlign: textAlignment,
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 maxLengthEnforcement: MaxLengthEnforcement.none,
-                onTextChanged: (newText) {
-                  // 여기에서 formattedText를 업데이트합니다.
+                onTextChanged: (String newRareText, String newFormattedText) {
+                  // 여기에서 상태를 업데이트합니다.
                   setState(() {
-                    formattedText = newText;
+                    rareText = newRareText;
+                    formattedText = newFormattedText;
                   });
                 },
               ),
@@ -292,12 +297,16 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
 }
 
 // 상위 위젯에 대한 콜백 함수 타입을 정의합니다.
-typedef OnTextChanged = void Function(String newText);
+typedef OnTextChanged = void Function(String rareText, String formattedText);
 
 class LineBreaksTrackingTextField extends StatefulWidget {
   final TextEditingController controller;
+  final double width, height;
   final int maxLength;
-  final TextStyle? style;
+
+  final TextStyle? textStyle;
+  final TextAlign textAlign;
+
   final String labelText;
   final TextInputType keyboardType;
   final TextInputAction textInputAction;
@@ -307,8 +316,12 @@ class LineBreaksTrackingTextField extends StatefulWidget {
   LineBreaksTrackingTextField({
     Key? key,
     required this.controller,
+    required this.width, required this.height,
     this.maxLength = TextField.noMaxLength, // 기본값으로 제한 없음 설정
-    this.style,
+
+    required this.textStyle, // 텍스트 스타일을 필수로 설정
+    required this.textAlign, // 텍스트 정렬을 필수로 설정
+
     this.labelText = '', // 기본 라벨 텍스트 설정
     this.keyboardType = TextInputType.multiline,
     this.textInputAction = TextInputAction.newline,
@@ -324,6 +337,11 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   void _handleTextChange() {
     String text = widget.controller.text;
 
+    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
+    // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
+    String rareText = "$text (${LoremIpsum})";
+
     // 현재 텍스트에서 수동 및 자동 줄바꿈 위치 찾기
     List<int> manualBreaks = _findManualLineBreaks(text);
     List<int> autoBreaks = _estimateAutomaticLineBreaks(text);
@@ -334,11 +352,10 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     print("자동 줄바꿈 위치 추정: $autoBreaks");
     print("글자수 제한 종료 위치: $cutoffPosition");
 
-    // 여기서 사용자 입력 앞에 "(test)"를 추가합니다.
-    String newText = "(test) $text";
+    String formattedText = rareText;
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
-    widget.onTextChanged(newText);
+    widget.onTextChanged(rareText, formattedText);
   }
 
   @override
@@ -365,7 +382,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
         border: OutlineInputBorder(),
         labelText: widget.labelText,
       ),
-      style: widget.style,
+      style: widget.textStyle,
       maxLengthEnforcement: widget.maxLengthEnforcement,
     );
   }
