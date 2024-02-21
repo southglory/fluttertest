@@ -272,8 +272,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                 controller: _textController,
                 maxLength: 1000,
                 labelText: 'Enter Text',
-                width: 300,
-                height: 100,
+                width: widget.width,
+                height: widget.height,
                 textStyle: textStyle,
                 textAlign: textAlignment,
                 keyboardType: TextInputType.multiline,
@@ -336,30 +336,30 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   void _handleTextChange() {
     String text = widget.controller.text;
 
-    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. \n"
-        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
+    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n"
+        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \n"
+        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \n"
+        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. ";
     // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
     String rareText = "$text (${LoremIpsum})";
 
-    // 현재 텍스트에서 수동 및 자동 줄바꿈 위치 찾기
+    // 현재 텍스트에서 수동 줄바꿈 위치 찾기
     List<int> manualBreaks = _findManualLineBreaks(rareText);
-    List<int> autoBreaks = _estimateAutomaticLineBreaks(rareText);
 
-    // 글자수 제한으로 인한 종료 위치 찾기
-    int cutoffPosition = _findCutoffPosition(rareText);
+    // 최대 줄 수를 예상하고, 수동 줄바꿈에 의한 줄 수가 최대 줄 수를 넘어가지 않도록 rareText를 우선 제한. 자동 줄바꿈 계산 부하를 줄이기 위해 먼저 적용한 것.
+    int maxLines = _getMaxLines(widget.height, widget.textStyle!);
+    LineBreakResult maxLineBreakResult = restrictTextLines(rareText, manualBreaks, maxLines);
 
-    print("수동 줄바꿈 위치: $manualBreaks");
-    print("자동 줄바꿈 위치 추정: $autoBreaks");
-    print("글자수 제한 종료 위치: $cutoffPosition");
+    // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
+    LineBreakResult lineBreakResult = estimateAndInsertLineBreaks(
+        maxLineBreakResult.formattedText, maxLineBreakResult.allBreaks, widget.textStyle!, widget.width);
 
-    // formattedText의 자동 줄바꿈 위치(autoBreaks) 에 \n 삽입
-    String formattedText = _insertLineBreaks(rareText, autoBreaks);
-
-    // 글자수 제한에 따라 텍스트 자르기
-    formattedText = _restrictTextLength(formattedText, cutoffPosition);
+    // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
+    LineBreakResult maxLineBreakResultFinal = restrictTextLines(
+        lineBreakResult.formattedText, lineBreakResult.allBreaks, maxLines);
 
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
-    widget.onTextChanged(rareText, formattedText);
+    widget.onTextChanged(rareText, maxLineBreakResultFinal.formattedText);
   }
 
   @override
@@ -400,17 +400,60 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
       breaks.add(cumulativeLength);
       cumulativeLength++; // '\n' 문자 길이 추가
     }
+    print('manual breaks: $breaks');
     return breaks;
   }
 
-  List<int> _estimateAutomaticLineBreaks(String text) {
+  LineBreakResult estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
+    // Placeholder for estimating automatic line breaks. This should be replaced with your actual logic.
+    List<int> autoBreaks = _estimateAutomaticLineBreaks(text, textStyle, containerWidth);
+
+    // Inserting line breaks based on the estimated positions
+    String formattedText = _insertLineBreaks(text, autoBreaks);
+
+    return LineBreakResult(autoBreaks, formattedText);
+  }
+
+  List<int> _estimateAutomaticLineBreaks(String text, TextStyle textStyle, double containerWidth) {
     // 복잡한 로직 구현 필요
     return [];
   }
 
   int _findCutoffPosition(String text) {
     // 복잡한 로직 구현 필요
+    // 글자 수 제한 기준: 특정 줄을 넘어가지 않도록 설정
     return text.length;
+  }
+
+  int _getMaxLines(double containerHeight, TextStyle style) {
+    // 텍스트 페인터를 사용해서 텍스트가 특정 높이 내에 몇 줄이 들어갈 수 있는지 계산
+    TextPainter textPainter = TextPainter(
+      text: TextSpan(text: ' ', style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: double.infinity);
+    // 텍스트가 들어갈 컨테이너에 높이 마진을 주어서 텍스트가 안전하게 들어갈 수 있도록 함
+    double containerHeightWithMargin = containerHeight - style.fontSize! * style.height! * 0.5;
+    print('fontSize: ${style.fontSize}');
+    print('containerHeightWithMargin: $containerHeightWithMargin');
+    int maxLines = (containerHeightWithMargin / textPainter.preferredLineHeight).floor();
+    print('maxLines: $maxLines');
+    return maxLines;
+  }
+
+  LineBreakResult restrictTextLines(String text, List<int> breakPositions, int maxLines) {
+    List<int> adjustedBreakPositions = breakPositions;
+    String adjustedText = text;
+    if (breakPositions.length > maxLines) {
+      // 최대 줄 수를 넘어가면, 줄바꿈 위치를 조정
+      int cutoffPosition = breakPositions[maxLines - 1];
+      adjustedBreakPositions = breakPositions.sublist(0, maxLines);
+      adjustedText = text.substring(0, cutoffPosition);
+    }
+    print('adjustedBreakPositions: $adjustedBreakPositions');
+    print('adjustedText: $adjustedText');
+    // 조정된 줄바꿈 위치와 조정된 문자열을 포함하는 결과 반환
+    return LineBreakResult(adjustedBreakPositions, adjustedText);
   }
 
   String _insertLineBreaks(String text, List<int> breakPositions) {
@@ -422,8 +465,11 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     }
     return charList.join('');
   }
+}
 
-  String _restrictTextLength(String text, int maxLength) {
-    return text.length > maxLength ? text.substring(0, maxLength) : text;
-  }
+class LineBreakResult {
+  final List<int> allBreaks;
+  final String formattedText;
+
+  LineBreakResult(this.allBreaks, this.formattedText);
 }
