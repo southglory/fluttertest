@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart'; // Ensure GetX is still used for dependency injection.
@@ -7,10 +9,13 @@ class TapController extends GetxController {
   var endStr = ''.obs;
   var dragStr = ''.obs; // Add this line for drag coordinates
   bool isDrawing = false;
+
   // starting point
   Offset? start;
+
   // dragging point
   Offset? drag;
+
   // ending point
   Offset? end;
 
@@ -49,11 +54,13 @@ class TapController extends GetxController {
     start = newStart;
     updateUI();
   }
+
   void updateDragPoint(Offset newDrag) {
     dragStr.value = newDrag.toString();
     drag = newDrag;
     updateUI();
   }
+
   void updateEndingPoint(Offset newEnd) {
     endStr.value = newEnd.toString();
     end = newEnd;
@@ -64,6 +71,7 @@ class TapController extends GetxController {
 void main() {
   runApp(MyApp());
 }
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -75,15 +83,14 @@ class MyApp extends StatelessWidget {
           title: Text('GetX Dragging End Coordinates App'),
         ),
         body: GestureDetector(
-          onTapDown: (TapDownDetails details) {
-
-          },
+          onTapDown: (TapDownDetails details) {},
           onPanUpdate: (DragUpdateDetails details) {
             // Apply grid to the details.localPosition to make the drag coordinates snap to the grid
             final x = (details.localPosition.dx / 10).round() * 10;
             final y = (details.localPosition.dy / 10).round() * 10;
             // Keep updating the drag coordinates and the end position as the user drags
-            tapController.updateDragCoordinates(Offset(x.toDouble(), y.toDouble()));
+            tapController
+                .updateDragCoordinates(Offset(x.toDouble(), y.toDouble()));
             tapController.updateEndingPoint(Offset(x.toDouble(), y.toDouble()));
           },
           onPanEnd: (DragEndDetails details) {
@@ -92,13 +99,14 @@ class MyApp extends StatelessWidget {
 
             if (tapController.start != null && tapController.end != null) {
               // Calculate the width and height of the rectangle
-              final width = (tapController.end!.dx - tapController.start!.dx).abs();
-              final height = (tapController.end!.dy - tapController.start!.dy).abs();
+              final width =
+              (tapController.end!.dx - tapController.start!.dx).abs();
+              final height =
+              (tapController.end!.dy - tapController.start!.dy).abs();
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
               Get.to(() => SquareDetailsScreen(width: width, height: height));
             }
           },
-
           child: Stack(
             children: [
               Container(
@@ -143,6 +151,7 @@ class MyApp extends StatelessWidget {
 
 class RectanglePainter extends CustomPainter {
   final Rect? rect;
+
   RectanglePainter({this.rect});
 
   @override
@@ -160,7 +169,6 @@ class RectanglePainter extends CustomPainter {
   bool shouldRepaint(covariant RectanglePainter oldDelegate) => true;
 }
 
-
 class SquareDetailsScreen extends StatefulWidget {
   final double width;
   final double height;
@@ -175,7 +183,7 @@ class SquareDetailsScreen extends StatefulWidget {
 class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextEditingController _textController = TextEditingController();
   String formattedText = ""; // State variable for holding formatted text
-  late int maxLength;
+  int maxLength =1; // State variable for holding the maximum length of the text
 
   final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
@@ -193,138 +201,20 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       fontWeight: fontWeightDefault,
       height: 1.0,
     );
-
-    maxLength = 1000; // Initial high limit to not constrain input initially
-    _textController.addListener(textChanged);
+    _textController.addListener(() {
+      setState(() {
+        // 여기에서 formattedText를 업데이트하는 로직을 구현하세요.
+        // 예시에서는 단순히 입력된 텍스트를 formattedText로 설정합니다.
+        formattedText = _textController.text;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _textController.removeListener(textChanged);
     _textController.dispose();
     super.dispose();
   }
-
-  void textChanged() {
-    final String currentText = _textController.text;
-    formattedText = breakCharacterWithMeasurement(
-        currentText, textStyle, widget.width, widget.height, textAlignment);
-
-    // // Measure the current text width to potentially update maxLength
-    // TextPainter textPainter = TextPainter(
-    //   text: TextSpan(text: currentText, style: textStyle),
-    //   maxLines: 3,
-    //   textDirection: TextDirection.ltr,
-    // );
-    // textPainter.layout(maxWidth: double.infinity);
-    // final double textWidth = textPainter.width;
-    //
-    // // Check if the text width exceeds the container width
-    // if (textWidth < widget.width) {
-    //   setState(() {
-    //     maxLength = currentText.length + 1;
-    //   });
-    // } else {
-    //   setState(() {
-    //     maxLength = currentText.length - 1;
-    //   });
-    // }
-
-    // Update the state to display formatted text
-    setState(() {
-      this.formattedText = formattedText;
-    });
-  }
-
-  int calculateLinesCount(TextStyle style, double containerHeight) {
-    // Using a space character to measure the height might be more reliable as it should
-    // give us the height of an empty line of text, including leading.
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(text: ' ', style: style),
-      maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout(minWidth: 0, maxWidth: double.infinity);
-
-    // The height property acts as a multiplier to the font size.
-    double styleHeight = style.fontSize! * (style.height ?? 1.0);
-    // Measure the height of a space character as a proxy for line height.
-    double measuredHeight = textPainter.size.height;
-    print("measuredHeight: $measuredHeight");
-
-    // Regard the line height as the maximum of the measured height and the style height.
-    double lineHeight = measuredHeight > styleHeight ? measuredHeight : styleHeight;
-    print("lineHeight: $lineHeight");
-
-    // Calculate the number of lines that can fit in the container.
-    int linesCount = containerHeight ~/ lineHeight;
-    return linesCount;
-  }
-
-  String breakCharacterWithMeasurement(
-      String input, TextStyle textStyle, double containerWidth, double containerHeight, TextAlign textAlign) {
-    List<String> lines = [];
-    TextPainter textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      textAlign: textAlign,
-    );
-    List<String> words = input.split(' '); // Split the input into words.
-    String currentLine = '';
-    print("containerWidth: $containerWidth");
-    print("containerHeight: $containerHeight");
-    //
-    double textWidth;
-    double textWidthPadding = textStyle.fontSize! * 0.5;
-    // modify the containerHeight to be the multiple of the text height
-    int linesCount = calculateLinesCount(textStyle, containerHeight);
-    print("linesCount: $linesCount");
-    int currentLineCount = 0;
-
-    for (String word in words) {
-      // Handle each word
-      bool isFirstCharacterOfWord = true;
-      for (int i = 0; i < word.length; i++) {
-        // Handle each character in the word
-        String character = word[i];
-        String testLine = isFirstCharacterOfWord && currentLine.isNotEmpty ? "$currentLine $character" : "$currentLine$character";
-        textPainter.text = TextSpan(text: testLine, style: textStyle);
-        textPainter.layout(maxWidth: double.infinity);
-
-        textWidth = textPainter.width + textWidthPadding*2;
-        if (textWidth > containerWidth) {
-          if (!isFirstCharacterOfWord || currentLine.isNotEmpty) {
-            // If the line is not empty, or if it's not the first character of the word, add the current line to the lines list
-            lines.add(currentLine);
-            currentLineCount++;
-            if (currentLineCount >= linesCount) break; // Stop if the maximum number of lines is reached
-            currentLine = character; // Start a new line with the current character
-          } else {
-            // If it's the first character of the word and the line is empty
-            currentLine = character; // Add the character to the current line
-          }
-          isFirstCharacterOfWord = false;
-        } else {
-          // If the character fits, add it to the current line
-          currentLine = testLine;
-          isFirstCharacterOfWord = false;
-        }
-      }
-      // After processing a word, add a space if it's not the end of a line
-      if (currentLineCount < linesCount && !currentLine.endsWith(' ')) {
-        currentLine += ' ';
-      }
-
-      // Check if we've reached the maximum number of lines
-      if (currentLineCount >= linesCount) break;
-    }
-
-    // Add any remaining text in the currentLine to lines, if there's space
-    if (!currentLine.isEmpty && currentLineCount < linesCount) {
-      lines.add(currentLine.trim());
-    }
-
-    return lines.join('\n').trim();
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +238,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                     print('Capture the green container as an image');
                   },
                   // Text to display in the button and width, height of the green container
-                  child: Text('Capture Image, ${widget.width}x${widget.height}'),
+                  child:
+                  Text('Capture Image, ${widget.width}x${widget.height}'),
                 ),
               ],
             ),
@@ -371,25 +262,19 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
-              child: Text(formattedText, style: textStyle,textAlign: textAlignment),
+              child: Text(formattedText,
+                  style: textStyle, textAlign: textAlignment),
             ),
             Divider(),
             Padding(
               padding: EdgeInsets.all(16.0),
-              child: TextField(
+              child : LineBreaksTrackingTextField(
                 controller: _textController,
-                maxLength: maxLength,
-                // To allow for unlimited lines, set maxLines to null.
-                // If you want to limit the number of lines, set maxLines to an integer value greater than 1.
-                maxLines: null,
-                keyboardType: TextInputType.multiline, // Set the keyboard type to multiline
-                textInputAction: TextInputAction.newline, // Set the input action to support newline for multiline input
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Enter your comments',
-                ),
-                style: textStyle, // Apply the specified textStyle to the TextField
-                // Optional: Remove the maxLength restriction while typing (but still show the counter)
+                maxLength: 1000,
+                labelText: 'Enter Text',
+                style: textStyle,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
                 maxLengthEnforcement: MaxLengthEnforcement.none,
               ),
             ),
@@ -397,5 +282,97 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
         ),
       ),
     );
+  }
+}
+
+
+class LineBreaksTrackingTextField extends StatefulWidget {
+  final TextEditingController controller;
+  final int maxLength;
+  final TextStyle? style;
+  final String labelText;
+  final TextInputType keyboardType;
+  final TextInputAction textInputAction;
+  final MaxLengthEnforcement maxLengthEnforcement;
+
+  LineBreaksTrackingTextField({
+    Key? key,
+    required this.controller,
+    this.maxLength = TextField.noMaxLength, // 기본값으로 제한 없음 설정
+    this.style,
+    this.labelText = '', // 기본 라벨 텍스트 설정
+    this.keyboardType = TextInputType.multiline,
+    this.textInputAction = TextInputAction.newline,
+    this.maxLengthEnforcement = MaxLengthEnforcement.none,
+  }) : super(key: key);
+
+  @override
+  _LineBreaksTrackingTextFieldState createState() => _LineBreaksTrackingTextFieldState();
+}
+
+class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextField> {
+  void _handleTextChange() {
+    String text = widget.controller.text;
+
+    // 현재 텍스트에서 수동 및 자동 줄바꿈 위치 찾기
+    List<int> manualBreaks = _findManualLineBreaks(text);
+    List<int> autoBreaks = _estimateAutomaticLineBreaks(text);
+
+    // 글자수 제한으로 인한 종료 위치 찾기
+    int cutoffPosition = _findCutoffPosition(text, widget.maxLength);
+    print("수동 줄바꿈 위치: $manualBreaks");
+    print("자동 줄바꿈 위치 추정: $autoBreaks");
+    print("글자수 제한 종료 위치: $cutoffPosition");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleTextChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleTextChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      maxLength: widget.maxLength,
+      maxLines: null, // 멀티라인 입력을 허용
+      keyboardType: widget.keyboardType,
+      textInputAction: widget.textInputAction,
+      decoration: InputDecoration(
+        border: OutlineInputBorder(),
+        labelText: widget.labelText,
+      ),
+      style: widget.style,
+      maxLengthEnforcement: widget.maxLengthEnforcement,
+    );
+  }
+
+  List<int> _findManualLineBreaks(String text) {
+    List<int> breaks = [];
+    List<String> lines = text.split('\n');
+    int cumulativeLength = 0;
+    for (var line in lines) {
+      cumulativeLength += line.length;
+      breaks.add(cumulativeLength);
+      cumulativeLength++; // '\n' 문자 길이 추가
+    }
+    return breaks;
+  }
+
+  List<int> _estimateAutomaticLineBreaks(String text) {
+    // 복잡한 로직 구현 필요
+    return [];
+  }
+
+  int _findCutoffPosition(String text, int maxLength) {
+    // 텍스트가 maxLength를 초과하는 경우, 초과하는 부분을 자르고 그 위치를 반환
+    return text.length > maxLength ? maxLength : text.length;
   }
 }
