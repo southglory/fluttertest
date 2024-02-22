@@ -195,14 +195,6 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize textStyle here to use it in textChanged
-    textStyle = TextStyle(
-      fontSize: fontSizeDefault,
-      fontWeight: fontWeightDefault,
-      height: 1.0,
-      letterSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
-      wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
-    );
     _textController.addListener(textChanged);
   }
 
@@ -220,6 +212,19 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 디바이스의 텍스트 스케일 팩터 값을 가져옵니다.
+    final deviceScaledFontSize = MediaQuery.textScalerOf(context).scale(fontSizeDefault);
+
+    // Initialize textStyle here to use it in textChanged
+    textStyle = TextStyle(
+      fontSize: deviceScaledFontSize,
+      fontWeight: fontWeightDefault,
+      height: 1.0,
+      letterSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
+      wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
+    );
+
+
     return Scaffold(
       appBar: AppBar(title: Text('Square Details')),
       body: SingleChildScrollView(
@@ -247,12 +252,14 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
 
             Container(
+              // 패딩 0으로 설정
+              padding: EdgeInsets.zero,
               width: widget.width,
               height: widget.height,
               color: Colors.green,
               alignment: Alignment.center,
               child: Text(
-                rareText, // Display the rare text here
+                formattedText, // rareText, // Display the rare text here
                 style: textStyle,
                 textAlign: textAlignment,
               ),
@@ -361,6 +368,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
         tabResult.formattedText, tabResult.breakPositions, widget.textStyle!, containerWidth);
+
+    //
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
     LineBreakResult maxLineBreakResultFinal = _restrictTextLines(
@@ -555,12 +564,32 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   }
 
   double measureTextWidth(String text, TextStyle textStyle) {
+    int maxLines = text.split('\n').length;
     final TextPainter textPainter = TextPainter(
       text: TextSpan(text: text, style: textStyle),
-      maxLines: 1,
+      maxLines: maxLines,
       textDirection: TextDirection.ltr,
     )..layout(minWidth: 0, maxWidth: double.infinity);
     return textPainter.width;
+  }
+
+  List<double> _calculateTextSegmentHeights(List<String> textSegments, TextStyle textStyle) {
+    return textSegments.map((word) {
+      return measureTextHeight(word, textStyle);
+    }).toList();
+  }
+
+  double measureTextHeight(String text, TextStyle textStyle) {
+    if (text.isEmpty) {
+      text = ' '; // 한 줄짜리 텍스트의 높이를 구하기 위해 빈 문자열이면 공백 문자로 대체
+    }
+    int maxLines = text.split('\n').length;
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: text, style: textStyle),
+      maxLines: maxLines,
+      textDirection: TextDirection.ltr,
+    )..layout(minWidth: 0, maxWidth: double.infinity);
+    return textPainter.height;
   }
 
   int _getMaxLines(double containerHeight, TextStyle style) {
@@ -574,7 +603,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     double containerHeightWithMargin = containerHeight - style.fontSize! * 0.5;
     print('fontSize: ${style.fontSize}');
     print('containerHeightWithMargin: $containerHeightWithMargin');
-    int maxLines = (containerHeightWithMargin / textPainter.preferredLineHeight).floor();
+    int maxLines = (containerHeightWithMargin / textPainter.height).floor();
     print('maxLines: $maxLines');
     return maxLines;
   }
@@ -582,7 +611,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   LineBreakResult _restrictTextLines(String text, List<int> breakPositions, int maxLines) {
     List<int> adjustedBreakPositions = List<int>.from(breakPositions);
     String adjustedText = text;
-    if (breakPositions.length > maxLines) {
+    if (breakPositions.length >= maxLines) {
       // 최대 줄 수를 넘어가면, 줄바꿈 위치를 조정
       int cutoffPosition = breakPositions[maxLines - 1];
       adjustedBreakPositions = breakPositions.sublist(0, maxLines);
