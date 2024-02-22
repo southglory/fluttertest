@@ -571,7 +571,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
       maxLines: 1,
     )..layout(maxWidth: double.infinity);
     // 텍스트가 들어갈 컨테이너에 높이 마진을 주어서 텍스트가 안전하게 들어갈 수 있도록 함
-    double containerHeightWithMargin = containerHeight - style.fontSize! * style.height! * 0.5;
+    double containerHeightWithMargin = containerHeight - style.fontSize! * 0.5;
     print('fontSize: ${style.fontSize}');
     print('containerHeightWithMargin: $containerHeightWithMargin');
     int maxLines = (containerHeightWithMargin / textPainter.preferredLineHeight).floor();
