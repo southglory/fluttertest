@@ -200,6 +200,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       fontSize: fontSizeDefault,
       fontWeight: fontWeightDefault,
       height: 1.0,
+      letterSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
+      wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
     );
     _textController.addListener(textChanged);
   }
@@ -341,7 +343,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
         "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \n"
         "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. ";
     // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
-    String rareText = "$text (${LoremIpsum})";
+    String rareText = "$text(${LoremIpsum})";
 
     // 현재 텍스트에서 수동 줄바꿈 위치 찾기
     List<int> manualBreaks = _findManualLineBreaks(rareText);
@@ -350,9 +352,15 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     int maxLines = _getMaxLines(widget.height, widget.textStyle!);
     LineBreakResult maxLineBreakResult = _restrictTextLines(rareText, manualBreaks, maxLines);
 
+    // 탭을 공백으로 변환하고, 변환된 텍스트와 조정된 줄바꿈 위치를 받아옴
+    LineBreakResult tabResult = _replaceTabsWithSpaces(maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions);
+
+    // Widget의 너비에 폰트의 너비만큼의 여유 공간을 뺀 값을 컨테이너 너비로 설정
+    double containerWidth = widget.width - widget.textStyle!.fontSize!;
+
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
-        maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions, widget.textStyle!, widget.width);
+        tabResult.formattedText, tabResult.breakPositions, widget.textStyle!, containerWidth);
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
     LineBreakResult maxLineBreakResultFinal = _restrictTextLines(
@@ -405,51 +413,154 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   }
 
   LineBreakResult _estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
-    // Placeholder for estimating automatic line breaks. This should be replaced with your actual logic.
-    List<int> autoBreaks = _estimateAutomaticLineBreaks(text, manualBreaks, textStyle, containerWidth);
 
-    // Inserting line breaks based on the estimated positions
-    LineBreakResult formattedTextWithBreaks = _insertLineBreaks(text, autoBreaks);
+    // 줄바꿈이 있는 위치를 기준으로 LineBreakResult를 줄별로 나누어서 리스트에 저장하고 반환하는 함수
+    List<String> SingleLineTexts = _splitLineBreakResultsByLine(text);
 
-    return LineBreakResult(formattedTextWithBreaks.breakPositions, formattedTextWithBreaks.formattedText);
+
+    // 각 라인에 관한 자동 줄바꿈 위치를 추정하고, 다시한번 더  쪼개어진 문자열의 리스트로 반환.
+    // 인풋은 [수동라인1, 수동라인2] => 결과는 [[자동라인1, 자동라인2], [자동라인3, 자동라인4, 자동라인5]]
+    List<List<List<String>>> formattedLineBreakResults = SingleLineTexts.map((line) {
+      if (line.isEmpty) {
+        // For empty lines, return a list with an empty string to ensure it's not skipped
+        return [[line]]; // Represents an empty line
+      }
+      return _estimateAutomaticLineBreaks(line, textStyle, containerWidth);
+    }).toList();
+    print('formattedLineBreakResults: $formattedLineBreakResults');
+    // 리스트의 각 요소는 라인별로 나누어진 문자열을 포함하고 있음. 다음과 같이 이중으로 되어 있을 수 있음. [[[first line], [second line]], [third line]]
+    // 라인 단위로 나누어진 문자열을 하나의 문자열로 합치며, 줄바꿈 문자를 추가하여 하나의 문자열로 만들고, 줄바꿈 위치를 반환하는 함수
+    // formattedLineBreakResults 의 요소를 가장 바깥쪽에서 순회하면서, 각 요소를 다시 순회하면서, 각 요소를 하나의 문자열로 합치면서 해당 접점 인덱스를 함께 반환
+    // 즉, map을 사용하여 formattedLineBreakResults의 요소를 순회하면서, 각 요소를 join하여 하나의 문자열로 만들고, 각 요소가 join된 접점 인덱스를 함께 LineBreakResult로 반환
+    // 예를 들어,[[[]], [[(Lorem,  ], [ipsum,  ], [dolor,  , sit,  ]], [[Sed,  , do,  ], [eiusmod,  ], [tempor,  ]] ]
+
+    String fullLines = "";
+    int fullLineBreaks = 0;
+    List<int> fullBreaks = [];
+    for (int i = 0; i < formattedLineBreakResults.length; i++) {
+      for (int j = 0; j < formattedLineBreakResults[i].length; j++) {
+        List<String> line = formattedLineBreakResults[i][j];
+        String lineText = line.join('');
+        // i, j 모두 마지막 라인이 아니면, 줄바꿈 문자를 추가
+        if (i != formattedLineBreakResults.length - 1 || j != formattedLineBreakResults[i].length - 1) {
+          lineText += '\n';
+        }
+        fullLines += lineText;
+        fullLineBreaks += lineText.length;
+        fullBreaks.add(fullLineBreaks);
+
+        print('lineText: $lineText');
+      }
+    }
+    print('fullLines: $fullLines');
+    print('fullBreaks: $fullBreaks');
+
+    return LineBreakResult(fullBreaks, fullLines);
   }
 
-  List<int> _estimateAutomaticLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
+  List<String> _splitLineBreakResultsByLine(String multiLineText) {
+    return multiLineText.split('\n');
+  }
+
+
+  List<List<String>> _estimateAutomaticLineBreaks(String text, TextStyle textStyle, double containerWidth) {
     // 복잡한 로직 구현 필요. 여기서는 단순히 자동 줄바꿈 위치를 반환
-    // 문장에서 탭을 공백으로 대체
-    String replacedText = _replaceTabsWithSpaces(text);
-    // 문장을 단어로 분리. 함수를 사용하지 않음. 정규 표현식을 사용함.
-    // List<String> wordsAndSpaces = replacedText.split(' ');
-    // // 여기서는 단어와 공백을 분리하는 데 사용할 수 있는 함수를 사용하여 단어와 공백을 분리함.
+
+    // 여기서는 단어와 공백을 분리하는 데 사용할 수 있는 함수를 사용하여 단어와 공백을 분리함.
     List<String> wordsAndSpaces = _splitTextIntoWordsAndSpaces(text);
+    print('wordsAndSpaces: $wordsAndSpaces');
 
-    // 리스트의 각 문자열 요소의 너비를 계산
-    List<double> wordWidths = wordsAndSpaces.map((word) {
-      TextPainter textPainter = TextPainter(
-        text: TextSpan(text: word, style: textStyle),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout(maxWidth: double.infinity);
-      return textPainter.width;
-    }).toList();
+    // 리스트의 각 문자열 요소의 너비를 계산하는 함수
+    List<double> wordWidths = _calculateTextSegmentWidths(wordsAndSpaces, textStyle);
     print('wordWidths: $wordWidths');
-    // 두번째 단어부터 세 번째 단어만 너비 합산
-    double sum = wordWidths.sublist(3, 6).fold(0, (prev, element) => prev + element);
-    print('sum: $sum');
 
-    // 맨 앞 3단어만 합침.
-    // 단어를 합칠 때 공백을 추가해야함. 정규 표현식을 사용함
-    String firstThreeWords = wordsAndSpaces.sublist(3, 6).join('');
-    print('firstThreeWords: $firstThreeWords');
-    // 맨 앞 3단어의 너비 계산
-    TextPainter textPainter = TextPainter(
-      text: TextSpan(text: firstThreeWords, style: textStyle),
-      textDirection: TextDirection.ltr,
+    // 테스트로 두번째 단어부터 세 번째 단어만 너비 합산
+    // double sum = wordWidths.sublist(0, 3).fold(0, (prev, element) => prev + element);
+    // print('sum: $sum');
+    print('containerWidth: $containerWidth');
+    // 차례로 단어의 너비를 더해가면서, 컨테이너 너비를 넘어가기 직전의 단어 인덱스를 찾음
+    // 예를 들어, 단어 1, 2, 3의 너비 합이 컨테이너 너비를 넘어가면, 단어 1, 2까지만 표시하고 줄바꿈
+    // 만약, 단어 1만으로도 컨테이너 너비를 넘어가면, 단어를 문자로 쪼개어 다시 더해가면서 너비를 계산
+    // longlongword라는 단어가 컨테이너 너비를 넘어가면, ['l', 'o', 'n', 'g', 'l', 'o', 'n', 'g', 'w', 'o', 'r', 'd']로 쪼개고 다시 너비를 계산
+
+    // 차례로 단어의 너비를 더하면서, 컨테이너 너비를 넘어가기 직전의 단어 인덱스를 찾고 그 인덱스까지의 단어를 결합하여 result에 추가
+    // 그 다음 인덱스부터 다시 너비를 더하면서 컨테이너 너비를 넘어가기 직전의 단어 인덱스를 찾고 그 인덱스까지의 단어를 결합하여 result에 추가
+    // 이 과정을 반복.
+    // 단, 그 자체만으로 컨테이너 너비를 넘어가는 단어가 있을 경우, 단어를 문자로 쪼개어 다시 더해가면서 너비를 계산하고 그 인덱스까지의 문자를 결합하여 result에 추가
+    // 그 다음 인덱스부터 다시 너비를 더하면서 컨테이너 너비를 넘어가기 직전의 단어 인덱스를 찾고 그 인덱스까지의 단어를 결합하여 result에 추가
+    // 이 과정을 반복.
+    // 단, 문자도 그 자체만으로 컨테이너 너비를 넘어가는 경우는 없음. 따라서 최소 컨테이너 너비는 문자 너비보다는 크다고 가정함.
+    List<List<String>> result = compareWidthsIteratively(wordsAndSpaces, wordWidths, containerWidth, textStyle);
+
+    print('result: $result');
+
+    return result;
+  }
+
+  List<List<String>> compareWidthsIteratively(List<String> segments, List<double> widths, double containerWidth, TextStyle textStyle) {
+    List<List<String>> lines = []; // Stores lines of words
+    List<String> currentLine = []; // Current line being constructed
+    double currentLineWidth = 0.0; // Width of the current line
+
+    for (int i = 0; i < segments.length; i++) {
+      String segment = segments[i];
+      double segmentWidth = widths[i];
+
+      if (segmentWidth > containerWidth) {
+        // If a single segment exceeds the container width, split it
+        List<String> splitSegment = segment.split('');
+        for (var char in splitSegment) {
+          double charWidth = measureTextWidth(char, textStyle);
+          if (currentLineWidth + charWidth > containerWidth) {
+            // Add current line to lines and start a new line
+            if (currentLine.isNotEmpty) {
+              lines.add(List.from(currentLine));
+              currentLine.clear();
+            }
+            currentLineWidth = 0.0;
+          }
+          currentLine.add(char);
+          currentLineWidth += charWidth;
+        }
+      } else if (currentLineWidth + segmentWidth <= containerWidth) {
+        // Add the segment to the current line
+        currentLine.add(segment);
+        currentLineWidth += segmentWidth;
+      } else {
+        // The segment doesn't fit in the current line, so start a new line
+        if (currentLine.isNotEmpty) {
+          lines.add(List.from(currentLine));
+          currentLine.clear();
+        }
+        currentLine.add(segment);
+        currentLineWidth = segmentWidth;
+      }
+    }
+
+    // Add the last line if it's not empty
+    if (currentLine.isNotEmpty) {
+      lines.add(currentLine);
+    }
+
+    return lines;
+  }
+
+
+
+
+  List<double> _calculateTextSegmentWidths(List<String> textSegments, TextStyle textStyle) {
+    return textSegments.map((word) {
+      return measureTextWidth(word, textStyle);
+    }).toList();
+  }
+
+  double measureTextWidth(String text, TextStyle textStyle) {
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: text, style: textStyle),
       maxLines: 1,
-    )..layout(maxWidth: double.infinity);
-    print('firstThreeWords width: ${textPainter.width}');
-
-    return [];
+      textDirection: TextDirection.ltr,
+    )..layout(minWidth: 0, maxWidth: double.infinity);
+    return textPainter.width;
   }
 
   int _getMaxLines(double containerHeight, TextStyle style) {
@@ -507,40 +618,61 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   // Expected: Input: "a  bc  " => Words: [a, , , bc, , ]
   // Expected: Input: "a\tbc" => Words: [a,     , bc]
   // Expected: Input: "" => Words: [""]
-  List<String> _splitTextIntoWordsAndSpaces(String input, {int spacesPerTab = 4}) {
-    // First, replace tabs with spaces
-    input = _replaceTabsWithSpaces(input, spacesPerTab: spacesPerTab);
-
+  List<String> _splitTextIntoWordsAndSpaces(String input) {
     List<String> segments = [];
-    String currentSegment = '';
+    StringBuffer currentSegment = StringBuffer();
 
-    for (var i = 0; i < input.length; i++) {
+    for (int i = 0, len = input.length; i < len; i++) {
       String char = input[i];
 
       if (char != ' ') {
-        currentSegment += char; // Accumulate non-space characters
+        // 공백이 아닌 문자를 현재 세그먼트에 추가
+        currentSegment.write(char);
       } else {
+        // 현재 세그먼트가 비어있지 않다면, 세그먼트 목록에 추가하고 새로운 세그먼트 시작
         if (currentSegment.isNotEmpty) {
-          segments.add(currentSegment); // Add non-space segment
-          currentSegment = '';
+          segments.add(currentSegment.toString());
+          currentSegment.clear();
         }
-        segments.add(' '); // Treat space as a separate segment. select '' or ' ' based on requirement
+        // 공백 문자는 별도의 세그먼트로 처리
+        segments.add(char);
       }
     }
 
+    // 마지막 세그먼트가 남아 있다면 목록에 추가
     if (currentSegment.isNotEmpty) {
-      segments.add(currentSegment); // Add any remaining non-space segment
+      segments.add(currentSegment.toString());
     }
 
-    print('segments: $segments');
     return segments;
   }
 
+
+
   // Replace each tab with a specified number of spaces
-  String _replaceTabsWithSpaces(String input, {int spacesPerTab = 4}) {
-    // Replace each tab with a specified number of spaces
+  LineBreakResult _replaceTabsWithSpaces(String input, List<int> previousBreaks, {int spacesPerTab = 4}) {
+    List<int> adjustedBreakPositions = List<int>.from(previousBreaks);
     String spaces = List.filled(spacesPerTab, ' ').join('');
-    return input.replaceAll('\t', spaces);
+    StringBuffer adjustedText = StringBuffer();
+    int offset = 0; // 탭 변환으로 인한 문자열 길이 조정을 추적하기 위한 오프셋
+
+    for (int i = 0, len = input.length; i < len; i++) {
+      if (input[i] == '\t') {
+        // 탭 문자를 공백으로 변환
+        adjustedText.write(spaces);
+        // 탭으로 인해 문자열이 확장되었으므로, 오프셋 업데이트
+        offset += spacesPerTab - 1;
+        // 탭 이후의 모든 줄바꿈 위치를 오프셋만큼 조정
+        adjustedBreakPositions = adjustedBreakPositions.map((pos) {
+          return pos > i ? pos + offset : pos;
+        }).toList();
+      } else {
+        // 탭이 아닌 문자는 그대로 추가
+        adjustedText.write(input[i]);
+      }
+    }
+
+    return LineBreakResult(adjustedBreakPositions, adjustedText.toString());
   }
 }
 
