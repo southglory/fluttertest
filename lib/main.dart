@@ -5,8 +5,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:gallery_saver/gallery_saver.dart';
 import 'package:get/get.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path_provider/path_provider.dart'; // Ensure GetX is still used for dependency injection.
 import 'package:screenshot/screenshot.dart';
 
@@ -146,12 +146,11 @@ class MyApp extends StatelessWidget {
               imageController.height = height;
 
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
-              final capturedImageBytes = await Get.to(() => SquareDetailsScreen(width: width, height: height));
-              if (capturedImageBytes != null) {
-                // uint8List를 이미지로 변환
-                final image = await decodeImageFromList(capturedImageBytes);
+              final capturedImage = await Get.to(() => SquareDetailsScreen(width: width, height: height));
+              if (capturedImage!= null) {
+
                 // 이미지를 보여주는 위젯에 이미지를 업데이트
-                imageController.updateImage(image);
+                imageController.updateImage(capturedImage);
                 print('이미지 업데이트');
               }else{
                 print('이미지 업데이트 실패');
@@ -198,12 +197,9 @@ class MyApp extends StatelessWidget {
                     return Positioned(
                       top: tapController.start?.dy ?? 0,
                       left: tapController.start?.dx ?? 0,
-                      child: Transform.scale(
-                        scale: 1,
-                        child: CustomPaint(
-                          size: Size(imageController.width, imageController.height), // Use the designated frame size.
-                          painter: ImagePainter(image: imageCtrl.image.value!, width: imageController.width, height: imageController.height),
-                        ),
+                      child: CustomPaint(
+                        size: Size(imageController.width, imageController.height), // Use the designated frame size.
+                        painter: ImagePainter(image: imageCtrl.image.value!, width: imageController.width, height: imageController.height),
                       ),
                     );
                   } else {
@@ -273,7 +269,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
 
-  final double fontSizeDefault = 40;
+  final double fontSizeDefault = 80;
   final FontWeight fontWeightDefault = FontWeight.bold;
 
   // Initialize textStyle using the default font size and weight
@@ -323,15 +319,19 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
     );
   }
 
-  Future<bool?> _saveImageToGallery(Uint8List? imageBytes) async {
-    if (imageBytes == null) return false;
-    final tempDir = await getTemporaryDirectory();
-    final file =
-        await File('${tempDir.path}/image.png').writeAsBytes(imageBytes);
-    final result =
-        await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
-    print("이미지 저장 성공: $result");
-    return result;
+  Future<void> _saveImageToGallery(Uint8List? byteData) async {
+    // 임시디렉토리
+    final dir = await getTemporaryDirectory();
+    final filePath = '${dir.path}/image.png';
+    final imagePath = '${dir.path}/image.png';
+
+    if (byteData != null) {
+      // save as png
+      File(filePath).writeAsBytes(byteData!);
+      final result = await ImageGallerySaver.saveFile(imagePath);
+
+      print(result);
+    }
   }
 
   @override
@@ -393,7 +393,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       pixelRatio: 3.0,
                       delay: Duration(milliseconds: 10),
                     )
-                        .then((capturedImageBytes) {
+                        .then((capturedImageBytes) async {
                       // save the captured image to _capturedImageBytes
                       setState(() {
                         _capturedImageBytes = capturedImageBytes;
@@ -402,7 +402,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       // ShowCapturedWidget(context, capturedImageBytes);
                       _saveImageToGallery(capturedImageBytes);
                       // get back to the main screen
-                      Navigator.pop(context, _capturedImageBytes); // Pass the image bytes back
+                      Navigator.pop(context, _capturedImage); // Pass the image bytes back
                     });
                   },
                   // Text to display in the button and width, height of the green container
