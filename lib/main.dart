@@ -1,8 +1,12 @@
-import 'dart:math';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart'; // Ensure GetX is still used for dependency injection.
+import 'package:gallery_saver/gallery_saver.dart';
+import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart'; // Ensure GetX is still used for dependency injection.
 
 class TapController extends GetxController {
   var startStr = 'Tap Somewhere'.obs;
@@ -192,6 +196,34 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   late TextStyle textStyle;
   final TextAlign textAlignment = TextAlign.center;
 
+  final GlobalKey _captureKey = GlobalKey();
+  ui.Image? _capturedImage;
+  Uint8List? _imageBytes;
+  String _displayText = '';
+  Widget? _displayedImageWidget;
+
+  Future<void> _captureImage() async {
+    RenderRepaintBoundary boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+    ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData != null) {
+      setState(() {
+        _capturedImage = image;
+        _imageBytes = byteData.buffer.asUint8List();
+        _displayedImageWidget = Image.memory(_imageBytes!);
+      });
+    }
+  }
+
+  Future<bool?> _saveImageToGallery() async {
+    if (_imageBytes == null) return false;
+    final tempDir = await getTemporaryDirectory();
+    final file = await File('${tempDir.path}/image.png').writeAsBytes(_imageBytes!);
+    final result = await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
+    print("이미지 저장 성공: $result");
+    return result;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -219,13 +251,11 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
     textStyle = TextStyle(
       fontSize: deviceScaledFontSize,
       fontWeight: fontWeightDefault,
+      color: Colors.grey[800],
       height: 1.0,
       letterSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
       wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
     );
-
-    final GlobalKey _containerKey = GlobalKey();
-    Size widgetSize = Size.zero;
 
     return Scaffold(
       appBar: AppBar(title: Text('Square Details')),
@@ -256,40 +286,51 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             Center(
               child: GestureDetector(
                 onTap: (){
-                  final RenderBox renderBox = _containerKey.currentContext!.findRenderObject() as RenderBox;
-                  widgetSize = renderBox.size;
-                  print(widgetSize);
-                  // widgetSize를 dialog로 띄움
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: Text('Widget Size'),
-                        content: Text('Width: ${widgetSize.width}, Height: ${widgetSize.height}'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: Text('Close'),
-                          ),
-                        ],
+                  // 이미지를 캡처한 후, 갤러리에 저장. 순차적으로 실행.
+                  // 결과를 받아서 dialog로 표시
+                  _captureImage().then((_) {
+                    _saveImageToGallery().then((result) {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Text((result == true) ? "저장 성공" : "저장 실패"),
+                            content: Text((result == true) ? "이미지를 저장했습니다." : "이미지를 저장하는 데 실패했습니다."),
+                            actions: <Widget>[
+                              TextButton(
+                                child: Text("확인"),
+                                onPressed: () {
+                                  Navigator.of(context).pop(); // 다이얼로그 닫기
+                                },
+                              ),
+                            ],
+                          );
+                        },
                       );
-                    },
-                  );
+                    });
+                  });
                 },
-              child: Container(
-                key: _containerKey, // GlobalKey 할당
-                // 패딩 0으로 설정
-                padding: EdgeInsets.zero,
-                width: widget.width,
-                height: widget.height,
-                color: Colors.green,
-                alignment: Alignment.center,
-                child: Text(
-                  formattedText, // rareText, // Display the rare text here
-                  style: textStyle,
-                  textAlign: textAlignment,
+              child: RepaintBoundary(
+                key: _captureKey, // 캡처 키 할당
+                child: Container(
+                  // 패딩 0으로 설정
+                  padding: EdgeInsets.zero,
+                  width: widget.width,
+                  height: widget.height,
+                  decoration: BoxDecoration(
+                    // 여기에서 테두리를 정의
+                    border: Border.all(
+                      color: Colors.grey[800]!, // 테두리 색상
+                      width: 0.0, // 테두리 두께
+                    ),
+                    color: Colors.transparent, // 컨테이너 배경색을 투명하게 설정
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    formattedText, // rareText, // Display the rare text here
+                    style: textStyle,
+                    textAlign: textAlignment,
+                  ),
                 ),
               ),
             ),
@@ -376,9 +417,9 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     String text = widget.controller.text;
 
     String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n"
-        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \n"
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \n"
-        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. ";
+        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n"
+        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n"
+        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
     // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
     String rareText = "$text(${LoremIpsum})";
 
@@ -396,7 +437,7 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     LineBreakResult tabResult = _replaceTabsWithSpaces(maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions);
 
     // Widget의 너비에 폰트의 너비만큼의 여유 공간을 뺀 값을 컨테이너 너비로 설정
-    double containerWidth = widget.width - widget.textStyle!.fontSize!;
+    double containerWidth = widget.width - widget.textStyle!.fontSize! * 2;
 
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
