@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -73,6 +74,32 @@ class TapController extends GetxController {
   }
 }
 
+class ImageController extends GetxController {
+  var image = Rx<ui.Image?>(null);
+  var width = 0.0;
+  var height = 0.0;
+
+  void updateUI() {
+    // Calls GetxController's update method to update the UI
+    update();
+  }
+
+  void updateImage(ui.Image newImage) {
+    image.value = newImage;
+    updateUI();
+  }
+
+  Future<ui.Image> createDefaultWhiteImage(double width, double height) async {
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..color = Colors.white;
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), paint);
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(width.toInt(), height.toInt());
+    return img;
+  }
+}
+
 void main() {
   runApp(MyApp());
 }
@@ -81,6 +108,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TapController tapController = Get.put(TapController());
+    final ImageController imageController = Get.put(ImageController());
 
     return GetMaterialApp(
       home: Scaffold(
@@ -98,7 +126,7 @@ class MyApp extends StatelessWidget {
                 .updateDragCoordinates(Offset(x.toDouble(), y.toDouble()));
             tapController.updateEndingPoint(Offset(x.toDouble(), y.toDouble()));
           },
-          onPanEnd: (DragEndDetails details) {
+          onPanEnd: (DragEndDetails details) async {
             // When the user stops dragging, notify the controller
             tapController.notifyEnd();
 
@@ -108,8 +136,26 @@ class MyApp extends StatelessWidget {
                   (tapController.end!.dx - tapController.start!.dx).abs();
               final height =
                   (tapController.end!.dy - tapController.start!.dy).abs();
+              // // 탭 컨트롤러가 그린 사각형의 위치와 사이즈에 딱 맞게 이미지를 보여주게 함.
+              // // 일단 흰색 이미지로 테스트
+              // final image = await imageController.createDefaultWhiteImage(width, height);
+              // imageController.updateImage(image);
+
+              // 이미지 컨트롤러에 사각형의 너비와 높이를 전달하여 사각형의 너비와 높이를 업데이트
+              imageController.width = width;
+              imageController.height = height;
+
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
-              Get.to(() => SquareDetailsScreen(width: width, height: height));
+              final capturedImageBytes = await Get.to(() => SquareDetailsScreen(width: width, height: height));
+              if (capturedImageBytes != null) {
+                // uint8List를 이미지로 변환
+                final image = await decodeImageFromList(capturedImageBytes);
+                // 이미지를 보여주는 위젯에 이미지를 업데이트
+                imageController.updateImage(image);
+                print('이미지 업데이트');
+              }else{
+                print('이미지 업데이트 실패');
+              }
             }
           },
           child: Stack(
@@ -146,11 +192,48 @@ class MyApp extends StatelessWidget {
                   }
                 },
               ),
+              GetBuilder<ImageController>(
+                builder: (imageCtrl) {
+                  if (imageCtrl.image.value != null) {
+                    return Positioned(
+                      top: tapController.start?.dy ?? 0,
+                      left: tapController.start?.dx ?? 0,
+                      child: Transform.scale(
+                        scale: 1,
+                        child: CustomPaint(
+                          size: Size(imageController.width, imageController.height), // Use the designated frame size.
+                          painter: ImagePainter(image: imageCtrl.image.value!, width: imageController.width, height: imageController.height),
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(); // Or any placeholder you prefer.
+                  }
+                },
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class ImagePainter extends CustomPainter {
+  final ui.Image image;
+  final double width;
+  final double height;
+
+  ImagePainter({required this.image, required this.width, required this.height});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintImage(canvas: canvas, rect: Rect.fromLTWH(0, 0, width, height), image: image);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
 
@@ -190,17 +273,17 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
 
-  final double fontSizeDefault = 20;
+  final double fontSizeDefault = 40;
   final FontWeight fontWeightDefault = FontWeight.bold;
 
   // Initialize textStyle using the default font size and weight
   late TextStyle textStyle;
   final TextAlign textAlignment = TextAlign.center;
 
-  final GlobalKey _captureKey = GlobalKey();
-
   //Create an instance of ScreenshotController
   ScreenshotController screenshotController = ScreenshotController();
+  Uint8List? _capturedImageBytes;
+  ui.Image? _capturedImage;
 
   Future<dynamic> ShowCapturedWidget(
       BuildContext context, Uint8List capturedImage) {
@@ -310,9 +393,16 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       pixelRatio: 3.0,
                       delay: Duration(milliseconds: 10),
                     )
-                        .then((capturedImage) {
-                      _saveImageToGallery(capturedImage);
-                      ShowCapturedWidget(context, capturedImage);
+                        .then((capturedImageBytes) {
+                      // save the captured image to _capturedImageBytes
+                      setState(() {
+                        _capturedImageBytes = capturedImageBytes;
+                      });
+
+                      // ShowCapturedWidget(context, capturedImageBytes);
+                      _saveImageToGallery(capturedImageBytes);
+                      // get back to the main screen
+                      Navigator.pop(context, _capturedImageBytes); // Pass the image bytes back
                     });
                   },
                   // Text to display in the button and width, height of the green container
