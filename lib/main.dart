@@ -228,24 +228,20 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   }
 
   Future<void> _captureImage() async {
-    // 프레임이 렌더링된 후 약간의 지연을 줍니다.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future.delayed(Duration(milliseconds: 20));
-      try {
-        RenderRepaintBoundary boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-        ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-        ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData != null) {
-          setState(() {
-            _capturedImage = image;
-            _imageBytes = byteData.buffer.asUint8List();
-            _displayedImageWidget = Image.memory(_imageBytes!);
-          });
-        }
-      } catch (e) {
-        print("이미지 캡처 중 오류 발생: $e");
+    try {
+      RenderRepaintBoundary boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData != null) {
+        setState(() {
+          _capturedImage = image;
+          _imageBytes = byteData.buffer.asUint8List();
+          _displayedImageWidget = Image.memory(_imageBytes!);
+        });
       }
-    });
+    } catch (e) {
+      print("이미지 캡처 중 오류 발생: $e");
+    }
   }
 
 
