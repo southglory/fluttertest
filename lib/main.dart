@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart'; // Ensure GetX is still used for dependency injection.
+import 'package:screenshot/screenshot.dart';
 
 class TapController extends GetxController {
   var startStr = 'Tap Somewhere'.obs;
@@ -104,9 +105,9 @@ class MyApp extends StatelessWidget {
             if (tapController.start != null && tapController.end != null) {
               // Calculate the width and height of the rectangle
               final width =
-              (tapController.end!.dx - tapController.start!.dx).abs();
+                  (tapController.end!.dx - tapController.start!.dx).abs();
               final height =
-              (tapController.end!.dy - tapController.start!.dy).abs();
+                  (tapController.end!.dy - tapController.start!.dy).abs();
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
               Get.to(() => SquareDetailsScreen(width: width, height: height));
             }
@@ -197,29 +198,55 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextAlign textAlignment = TextAlign.center;
 
   final GlobalKey _captureKey = GlobalKey();
-  ui.Image? _capturedImage;
-  Uint8List? _imageBytes;
-  String _displayText = '';
-  Widget? _displayedImageWidget;
 
-  Future<void> _captureImage() async {
-    RenderRepaintBoundary boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-    ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData != null) {
-      setState(() {
-        _capturedImage = image;
-        _imageBytes = byteData.buffer.asUint8List();
-        _displayedImageWidget = Image.memory(_imageBytes!);
-      });
-    }
+  //Create an instance of ScreenshotController
+  ScreenshotController screenshotController = ScreenshotController();
+
+  Future<dynamic> ShowCapturedWidget(
+      BuildContext context, Uint8List capturedImage) {
+    return showDialog(
+      useSafeArea: false,
+      context: context,
+      builder: (context) => Scaffold(
+        appBar: AppBar(
+          title: Text("Captured widget screenshot"),
+        ),
+        body: Center(child: Image.memory(capturedImage)),
+      ),
+    );
   }
 
-  Future<bool?> _saveImageToGallery() async {
-    if (_imageBytes == null) return false;
+  Widget _textSticker(double width, double height, String formattedText,
+      TextStyle textStyle, TextAlign textAlignment) {
+    return Container(
+      // 패딩 0으로 설정
+      padding: EdgeInsets.zero,
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        // 여기에서 테두리를 정의
+        border: Border.all(
+          color: Colors.grey[800]!, // 테두리 색상
+          width: 0.0, // 테두리 두께
+        ),
+        color: Colors.transparent, // 컨테이너 배경색을 투명하게 설정
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        formattedText, // rareText, // Display the rare text here
+        style: textStyle,
+        textAlign: textAlignment,
+      ),
+    );
+  }
+
+  Future<bool?> _saveImageToGallery(Uint8List? imageBytes) async {
+    if (imageBytes == null) return false;
     final tempDir = await getTemporaryDirectory();
-    final file = await File('${tempDir.path}/image.png').writeAsBytes(_imageBytes!);
-    final result = await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
+    final file =
+        await File('${tempDir.path}/image.png').writeAsBytes(imageBytes);
+    final result =
+        await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
     print("이미지 저장 성공: $result");
     return result;
   }
@@ -245,7 +272,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     // 디바이스의 텍스트 스케일 팩터 값을 가져옵니다.
-    final deviceScaledFontSize = MediaQuery.textScalerOf(context).scale(fontSizeDefault);
+    final deviceScaledFontSize =
+        MediaQuery.textScalerOf(context).scale(fontSizeDefault);
 
     // Initialize textStyle here to use it in textChanged
     textStyle = TextStyle(
@@ -253,7 +281,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       fontWeight: fontWeightDefault,
       color: Colors.grey[800],
       height: 1.0,
-      letterSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
+      letterSpacing: null,
+      // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
       wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
     );
 
@@ -273,68 +302,35 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               children: [
                 ElevatedButton(
                   onPressed: () {
-                    // Capture the green container as an image
-                    print('Capture the green container as an image');
+                    var container = _textSticker(widget.width, widget.height,
+                        formattedText, textStyle, textAlignment);
+                    screenshotController
+                        .captureFromWidget(
+                      container,
+                      pixelRatio: 3.0,
+                      delay: Duration(milliseconds: 10),
+                    )
+                        .then((capturedImage) {
+                      _saveImageToGallery(capturedImage);
+                      ShowCapturedWidget(context, capturedImage);
+                    });
                   },
                   // Text to display in the button and width, height of the green container
                   child:
-                  Text('Capture Image, ${widget.width}x${widget.height}'),
+                      Text('Capture Image, ${widget.width}x${widget.height}'),
                 ),
               ],
             ),
 
-            Center(
-              child: GestureDetector(
-                onTap: (){
-                  // 이미지를 캡처한 후, 갤러리에 저장. 순차적으로 실행.
-                  // 결과를 받아서 dialog로 표시
-                  _captureImage().then((_) {
-                    _saveImageToGallery().then((result) {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: Text((result == true) ? "저장 성공" : "저장 실패"),
-                            content: Text((result == true) ? "이미지를 저장했습니다." : "이미지를 저장하는 데 실패했습니다."),
-                            actions: <Widget>[
-                              TextButton(
-                                child: Text("확인"),
-                                onPressed: () {
-                                  Navigator.of(context).pop(); // 다이얼로그 닫기
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    });
-                  });
-                },
-              child: RepaintBoundary(
-                key: _captureKey, // 캡처 키 할당
-                child: Container(
-                  // 패딩 0으로 설정
-                  padding: EdgeInsets.zero,
-                  width: widget.width,
-                  height: widget.height,
-                  decoration: BoxDecoration(
-                    // 여기에서 테두리를 정의
-                    border: Border.all(
-                      color: Colors.grey[800]!, // 테두리 색상
-                      width: 0.0, // 테두리 두께
-                    ),
-                    color: Colors.transparent, // 컨테이너 배경색을 투명하게 설정
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    formattedText, // rareText, // Display the rare text here
-                    style: textStyle,
-                    textAlign: textAlignment,
-                  ),
-                ),
-              ),
-            ),
-            ),
+            // Center(
+            //   child: GestureDetector(
+            //     onTap: () {
+            //
+            //     },
+            //       child: _textSticker(
+            //           widget.width, widget.height, formattedText, textStyle, textAlignment),
+            //   ),
+            // ),
             Divider(),
             Text(
               'Formatted Text:',
@@ -342,13 +338,15 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
+              color: Colors.yellow[100],
               child: Text(formattedText, // Display the formatted text here
-                  style: textStyle, textAlign: textAlignment),
+                  style: textStyle,
+                  textAlign: textAlignment),
             ),
             Divider(),
             Padding(
               padding: EdgeInsets.all(16.0),
-              child : LineBreaksTrackingTextField(
+              child: LineBreaksTrackingTextField(
                 controller: _textController,
                 maxLength: 1000,
                 labelText: 'Enter Text',
@@ -395,7 +393,8 @@ class LineBreaksTrackingTextField extends StatefulWidget {
   LineBreaksTrackingTextField({
     Key? key,
     required this.controller,
-    required this.width, required this.height,
+    required this.width,
+    required this.height,
     this.maxLength = TextField.noMaxLength, // 기본값으로 제한 없음 설정
 
     required this.textStyle, // 텍스트 스타일을 필수로 설정
@@ -409,14 +408,17 @@ class LineBreaksTrackingTextField extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _LineBreaksTrackingTextFieldState createState() => _LineBreaksTrackingTextFieldState();
+  _LineBreaksTrackingTextFieldState createState() =>
+      _LineBreaksTrackingTextFieldState();
 }
 
-class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextField> {
+class _LineBreaksTrackingTextFieldState
+    extends State<LineBreaksTrackingTextField> {
   void _handleTextChange() {
     String text = widget.controller.text;
 
-    String LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n"
+    String LoremIpsum =
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n"
         "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n"
         "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n"
         "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
@@ -427,28 +429,36 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     List<int> manualBreaks = _findManualLineBreaks(rareText);
 
     // 컨테이너 높이에 마진을 추가하여 컨테이너 높이를 계산
-    double containerHeightWithMargin = widget.height - widget.textStyle!.fontSize! * 0.5;
+    double containerHeightWithMargin =
+        widget.height - widget.textStyle!.fontSize! * 0.5;
 
     // 최대 줄 수를 예상하고, 수동 줄바꿈에 의한 줄 수가 최대 줄 수를 넘어가지 않도록 rareText를 우선 제한. 자동 줄바꿈 계산 부하를 줄이기 위해 먼저 적용한 것.
     int maxLines = _getMaxLines(containerHeightWithMargin, widget.textStyle!);
-    LineBreakResult maxLineBreakResult = _restrictTextLines(rareText, manualBreaks, maxLines);
+    LineBreakResult maxLineBreakResult =
+        _restrictTextLines(rareText, manualBreaks, maxLines);
 
     // 탭을 공백으로 변환하고, 변환된 텍스트와 조정된 줄바꿈 위치를 받아옴
-    LineBreakResult tabResult = _replaceTabsWithSpaces(maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions);
+    LineBreakResult tabResult = _replaceTabsWithSpaces(
+        maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions);
 
     // Widget의 너비에 폰트의 너비만큼의 여유 공간을 뺀 값을 컨테이너 너비로 설정
     double containerWidth = widget.width - widget.textStyle!.fontSize! * 2;
 
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
-        tabResult.formattedText, tabResult.breakPositions, widget.textStyle!, containerWidth);
+        tabResult.formattedText,
+        tabResult.breakPositions,
+        widget.textStyle!,
+        containerWidth);
 
     // // lineBreakResult.formattedText의 높이를 textPainter로 계산하여, containerHeight보다 크면 마지막 줄부터 차례로 제거하여 허용되는 높이까지 줄이는 함수.
     // LineBreakResult lineBreakResultFinal = _reduceLinesToContainerHeight(lineBreakResult.formattedText, lineBreakResult.breakPositions, containerHeightWithMargin, widget.textStyle!);
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
     LineBreakResult maxLineBreakResultFinal = _restrictTextLines(
-        lineBreakResult.formattedText, lineBreakResult.breakPositions, maxLines);
+        lineBreakResult.formattedText,
+        lineBreakResult.breakPositions,
+        maxLines);
 
     // print('lineBreakResultFinal: ${lineBreakResultFinal.breakPositions}');
     print('maxLineBreakResultFinal: ${maxLineBreakResultFinal.breakPositions}');
@@ -474,7 +484,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return TextField(
       controller: widget.controller,
       maxLength: widget.maxLength,
-      maxLines: null, // 멀티라인 입력을 허용
+      maxLines: null,
+      // 멀티라인 입력을 허용
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
       decoration: InputDecoration(
@@ -499,18 +510,20 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return breaks;
   }
 
-  LineBreakResult _estimateAndInsertLineBreaks(String text, List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
-
+  LineBreakResult _estimateAndInsertLineBreaks(String text,
+      List<int> manualBreaks, TextStyle textStyle, double containerWidth) {
     // 줄바꿈이 있는 위치를 기준으로 LineBreakResult를 줄별로 나누어서 리스트에 저장하고 반환하는 함수
     List<String> SingleLineTexts = _splitLineBreakResultsByLine(text);
 
-
     // 각 라인에 관한 자동 줄바꿈 위치를 추정하고, 다시한번 더  쪼개어진 문자열의 리스트로 반환.
     // 인풋은 [수동라인1, 수동라인2] => 결과는 [[자동라인1, 자동라인2], [자동라인3, 자동라인4, 자동라인5]]
-    List<List<List<String>>> formattedLineBreakResults = SingleLineTexts.map((line) {
+    List<List<List<String>>> formattedLineBreakResults =
+        SingleLineTexts.map((line) {
       if (line.isEmpty) {
         // For empty lines, return a list with an empty string to ensure it's not skipped
-        return [[line]]; // Represents an empty line
+        return [
+          [line]
+        ]; // Represents an empty line
       }
       return _estimateAutomaticLineBreaks(line, textStyle, containerWidth);
     }).toList();
@@ -529,7 +542,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
         List<String> line = formattedLineBreakResults[i][j];
         String lineText = line.join('');
         // i, j 모두 마지막 라인이 아니면, 줄바꿈 문자를 추가
-        if (i != formattedLineBreakResults.length - 1 || j != formattedLineBreakResults[i].length - 1) {
+        if (i != formattedLineBreakResults.length - 1 ||
+            j != formattedLineBreakResults[i].length - 1) {
           lineText += '\n';
         }
         fullLines += lineText;
@@ -549,8 +563,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return multiLineText.split('\n');
   }
 
-
-  List<List<String>> _estimateAutomaticLineBreaks(String text, TextStyle textStyle, double containerWidth) {
+  List<List<String>> _estimateAutomaticLineBreaks(
+      String text, TextStyle textStyle, double containerWidth) {
     // 복잡한 로직 구현 필요. 여기서는 단순히 자동 줄바꿈 위치를 반환
 
     // 여기서는 단어와 공백을 분리하는 데 사용할 수 있는 함수를 사용하여 단어와 공백을 분리함.
@@ -558,7 +572,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     print('wordsAndSpaces: $wordsAndSpaces');
 
     // 리스트의 각 문자열 요소의 너비를 계산하는 함수
-    List<double> wordWidths = _calculateTextSegmentWidths(wordsAndSpaces, textStyle);
+    List<double> wordWidths =
+        _calculateTextSegmentWidths(wordsAndSpaces, textStyle);
     print('wordWidths: $wordWidths');
 
     // 테스트로 두번째 단어부터 세 번째 단어만 너비 합산
@@ -577,14 +592,16 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     // 그 다음 인덱스부터 다시 너비를 더하면서 컨테이너 너비를 넘어가기 직전의 단어 인덱스를 찾고 그 인덱스까지의 단어를 결합하여 result에 추가
     // 이 과정을 반복.
     // 단, 문자도 그 자체만으로 컨테이너 너비를 넘어가는 경우는 없음. 따라서 최소 컨테이너 너비는 문자 너비보다는 크다고 가정함.
-    List<List<String>> result = compareWidthsIteratively(wordsAndSpaces, wordWidths, containerWidth, textStyle);
+    List<List<String>> result = compareWidthsIteratively(
+        wordsAndSpaces, wordWidths, containerWidth, textStyle);
 
     print('result: $result');
 
     return result;
   }
 
-  List<List<String>> compareWidthsIteratively(List<String> segments, List<double> widths, double containerWidth, TextStyle textStyle) {
+  List<List<String>> compareWidthsIteratively(List<String> segments,
+      List<double> widths, double containerWidth, TextStyle textStyle) {
     List<List<String>> lines = []; // Stores lines of words
     List<String> currentLine = []; // Current line being constructed
     double currentLineWidth = 0.0; // Width of the current line
@@ -632,7 +649,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return lines;
   }
 
-  List<double> _calculateTextSegmentWidths(List<String> textSegments, TextStyle textStyle) {
+  List<double> _calculateTextSegmentWidths(
+      List<String> textSegments, TextStyle textStyle) {
     return textSegments.map((word) {
       return measureTextWidth(word, textStyle);
     }).toList();
@@ -649,7 +667,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
   }
 
   // 안 씀. 테스트를 위해 만들어 놓음.
-  List<double> _calculateTextSegmentHeights(List<String> textSegments, TextStyle textStyle) {
+  List<double> _calculateTextSegmentHeights(
+      List<String> textSegments, TextStyle textStyle) {
     return textSegments.map((word) {
       return measureTextHeight(word, textStyle);
     }).toList();
@@ -684,14 +703,16 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return maxLines;
   }
 
-  LineBreakResult _restrictTextLines(String text, List<int> breakPositions, int maxLines) {
+  LineBreakResult _restrictTextLines(
+      String text, List<int> breakPositions, int maxLines) {
     List<int> adjustedBreakPositions = List<int>.from(breakPositions);
     String adjustedText = text;
     // 줄바꿈 횟수가 최대 줄바꿈 횟수를 넘어가면, 줄바꿈 위치를 조정하고, 문자열을 조정
     int maxBreaks = maxLines - 1;
-    if (breakPositions.length >= maxBreaks ) {
+    if (breakPositions.length >= maxBreaks) {
       adjustedBreakPositions = adjustedBreakPositions.sublist(0, maxBreaks);
-      adjustedText = adjustedText.substring(0, adjustedBreakPositions[maxBreaks - 1]);
+      adjustedText =
+          adjustedText.substring(0, adjustedBreakPositions[maxBreaks - 1]);
     }
 
     // 마지막 줄바꿈 인덱스를 제거
@@ -707,7 +728,8 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
 
   // 안 씀. 테스트를 위해 만들어 놓음.
   // lineBreakResult.formattedText의 높이를 textPainter로 계산하여, containerHeight보다 크면 마지막 줄부터 차례로 제거하여 허용되는 높이까지 줄이는 함수.
-  LineBreakResult _reduceLinesToContainerHeight(String lines, List<int> breaks, double containerHeight, TextStyle style) {
+  LineBreakResult _reduceLinesToContainerHeight(
+      String lines, List<int> breaks, double containerHeight, TextStyle style) {
     TextPainter textPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(text: lines, style: style),
@@ -787,10 +809,9 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return segments;
   }
 
-
-
   // Replace each tab with a specified number of spaces
-  LineBreakResult _replaceTabsWithSpaces(String input, List<int> previousBreaks, {int spacesPerTab = 4}) {
+  LineBreakResult _replaceTabsWithSpaces(String input, List<int> previousBreaks,
+      {int spacesPerTab = 4}) {
     List<int> adjustedBreakPositions = List<int>.from(previousBreaks);
     String spaces = List.filled(spacesPerTab, ' ').join('');
     StringBuffer adjustedText = StringBuffer();
