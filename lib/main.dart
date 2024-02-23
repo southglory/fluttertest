@@ -591,9 +591,6 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
     return lines;
   }
 
-
-
-
   List<double> _calculateTextSegmentWidths(List<String> textSegments, TextStyle textStyle) {
     return textSegments.map((word) {
       return measureTextWidth(word, textStyle);
@@ -655,6 +652,11 @@ class _LineBreaksTrackingTextFieldState extends State<LineBreaksTrackingTextFiel
       adjustedBreakPositions = adjustedBreakPositions.sublist(0, maxBreaks);
       adjustedText = adjustedText.substring(0, adjustedBreakPositions[maxBreaks - 1]);
     }
+
+    // 마지막 줄바꿈 인덱스를 제거
+    adjustedBreakPositions.removeLast();
+    // 적용텍스트에서 마지막 줄바꿈 문자 제거
+    adjustedText = adjustedText.substring(0, adjustedText.length - 1);
 
     print('adjustedBreakPositions: $adjustedBreakPositions');
     print('adjustedText: $adjustedText');
