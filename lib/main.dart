@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:gallery_saver/gallery_saver.dart';
 import 'package:get/get.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path_provider/path_provider.dart'; // Ensure GetX is still used for dependency injection.
 import 'package:screenshot/screenshot.dart';
 
@@ -73,6 +74,32 @@ class TapController extends GetxController {
   }
 }
 
+class ImageController extends GetxController {
+  var image = Rx<ui.Image?>(null);
+  var width = 0.0;
+  var height = 0.0;
+
+  void updateUI() {
+    // Calls GetxController's update method to update the UI
+    update();
+  }
+
+  void updateImage(ui.Image newImage) {
+    image.value = newImage;
+    updateUI();
+  }
+
+  Future<ui.Image> createDefaultWhiteImage(double width, double height) async {
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..color = Colors.white;
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), paint);
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(width.toInt(), height.toInt());
+    return img;
+  }
+}
+
 void main() {
   runApp(MyApp());
 }
@@ -81,6 +108,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TapController tapController = Get.put(TapController());
+    final ImageController imageController = Get.put(ImageController());
 
     return GetMaterialApp(
       home: Scaffold(
@@ -98,7 +126,7 @@ class MyApp extends StatelessWidget {
                 .updateDragCoordinates(Offset(x.toDouble(), y.toDouble()));
             tapController.updateEndingPoint(Offset(x.toDouble(), y.toDouble()));
           },
-          onPanEnd: (DragEndDetails details) {
+          onPanEnd: (DragEndDetails details) async {
             // When the user stops dragging, notify the controller
             tapController.notifyEnd();
 
@@ -108,8 +136,25 @@ class MyApp extends StatelessWidget {
                   (tapController.end!.dx - tapController.start!.dx).abs();
               final height =
                   (tapController.end!.dy - tapController.start!.dy).abs();
+              // // 탭 컨트롤러가 그린 사각형의 위치와 사이즈에 딱 맞게 이미지를 보여주게 함.
+              // // 일단 흰색 이미지로 테스트
+              // final image = await imageController.createDefaultWhiteImage(width, height);
+              // imageController.updateImage(image);
+
+              // 이미지 컨트롤러에 사각형의 너비와 높이를 전달하여 사각형의 너비와 높이를 업데이트
+              imageController.width = width;
+              imageController.height = height;
+
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
-              Get.to(() => SquareDetailsScreen(width: width, height: height));
+              final capturedImage = await Get.to(() => SquareDetailsScreen(width: width, height: height));
+              if (capturedImage!= null) {
+
+                // 이미지를 보여주는 위젯에 이미지를 업데이트
+                imageController.updateImage(capturedImage);
+                print('이미지 업데이트');
+              }else{
+                print('이미지 업데이트 실패');
+              }
             }
           },
           child: Stack(
@@ -146,11 +191,45 @@ class MyApp extends StatelessWidget {
                   }
                 },
               ),
+              GetBuilder<ImageController>(
+                builder: (imageCtrl) {
+                  if (imageCtrl.image.value != null) {
+                    return Positioned(
+                      top: tapController.start?.dy ?? 0,
+                      left: tapController.start?.dx ?? 0,
+                      child: CustomPaint(
+                        size: Size(imageController.width, imageController.height), // Use the designated frame size.
+                        painter: ImagePainter(image: imageCtrl.image.value!, width: imageController.width, height: imageController.height),
+                      ),
+                    );
+                  } else {
+                    return Container(); // Or any placeholder you prefer.
+                  }
+                },
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class ImagePainter extends CustomPainter {
+  final ui.Image image;
+  final double width;
+  final double height;
+
+  ImagePainter({required this.image, required this.width, required this.height});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintImage(canvas: canvas, rect: Rect.fromLTWH(0, 0, width, height), image: image);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
 
@@ -190,17 +269,17 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
 
-  final double fontSizeDefault = 20;
+  final double fontSizeDefault = 80;
   final FontWeight fontWeightDefault = FontWeight.bold;
 
   // Initialize textStyle using the default font size and weight
   late TextStyle textStyle;
   final TextAlign textAlignment = TextAlign.center;
 
-  final GlobalKey _captureKey = GlobalKey();
-
   //Create an instance of ScreenshotController
   ScreenshotController screenshotController = ScreenshotController();
+  Uint8List? _capturedImageBytes;
+  ui.Image? _capturedImage;
 
   Future<dynamic> ShowCapturedWidget(
       BuildContext context, Uint8List capturedImage) {
@@ -240,15 +319,19 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
     );
   }
 
-  Future<bool?> _saveImageToGallery(Uint8List? imageBytes) async {
-    if (imageBytes == null) return false;
-    final tempDir = await getTemporaryDirectory();
-    final file =
-        await File('${tempDir.path}/image.png').writeAsBytes(imageBytes);
-    final result =
-        await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
-    print("이미지 저장 성공: $result");
-    return result;
+  Future<void> _saveImageToGallery(Uint8List? byteData) async {
+    // 임시디렉토리
+    final dir = await getTemporaryDirectory();
+    final filePath = '${dir.path}/image.png';
+    final imagePath = '${dir.path}/image.png';
+
+    if (byteData != null) {
+      // save as png
+      File(filePath).writeAsBytes(byteData!);
+      final result = await ImageGallerySaver.saveFile(imagePath);
+
+      print(result);
+    }
   }
 
   @override
@@ -310,9 +393,16 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       pixelRatio: 3.0,
                       delay: Duration(milliseconds: 10),
                     )
-                        .then((capturedImage) {
-                      _saveImageToGallery(capturedImage);
-                      ShowCapturedWidget(context, capturedImage);
+                        .then((capturedImageBytes) async {
+                      // save the captured image to _capturedImageBytes
+                      setState(() {
+                        _capturedImageBytes = capturedImageBytes;
+                      });
+
+                      // ShowCapturedWidget(context, capturedImageBytes);
+                      _saveImageToGallery(capturedImageBytes);
+                      // get back to the main screen
+                      Navigator.pop(context, _capturedImage); // Pass the image bytes back
                     });
                   },
                   // Text to display in the button and width, height of the green container
