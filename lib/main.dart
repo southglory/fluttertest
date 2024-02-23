@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart'; // Ensure GetX is still used for dependency injection.
+import 'package:screenshot/screenshot.dart';
 
 class TapController extends GetxController {
   var startStr = 'Tap Somewhere'.obs;
@@ -197,59 +198,53 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   final TextAlign textAlignment = TextAlign.center;
 
   final GlobalKey _captureKey = GlobalKey();
-  ui.Image? _capturedImage;
-  Uint8List? _imageBytes;
-  Widget? _displayedImageWidget;
 
-  Widget _buildCapturableWidget(double width, double height, String formattedText, TextStyle textStyle, TextAlign textAlignment) {
-    return RepaintBoundary(
-      key: _captureKey, // 캡처 키 할당
-      child: Container(
-        // 패딩 0으로 설정
-        padding: EdgeInsets.zero,
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          // 여기에서 테두리를 정의
-          border: Border.all(
-            color: Colors.grey[800]!, // 테두리 색상
-            width: 0.0, // 테두리 두께
-          ),
-          color: Colors.transparent, // 컨테이너 배경색을 투명하게 설정
+  //Create an instance of ScreenshotController
+  ScreenshotController screenshotController = ScreenshotController();
+
+  Future<dynamic> ShowCapturedWidget(
+      BuildContext context, Uint8List capturedImage) {
+    return showDialog(
+      useSafeArea: false,
+      context: context,
+      builder: (context) => Scaffold(
+        appBar: AppBar(
+          title: Text("Captured widget screenshot"),
         ),
-        alignment: Alignment.center,
-        child: Text(
-          formattedText, // rareText, // Display the rare text here
-          style: textStyle,
-          textAlign: textAlignment,
-        ),
+        body: Center(child: Image.memory(capturedImage)),
       ),
     );
   }
 
-  Future<void> _captureImage() async {
-    try {
-      RenderRepaintBoundary boundary = _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData != null) {
-        setState(() {
-          _capturedImage = image;
-          _imageBytes = byteData.buffer.asUint8List();
-          _displayedImageWidget = Image.memory(_imageBytes!);
-        });
-      }
-    } catch (e) {
-      print("이미지 캡처 중 오류 발생: $e");
-    }
+  Widget _textSticker(double width, double height, String formattedText,
+      TextStyle textStyle, TextAlign textAlignment) {
+    return Container(
+      // 패딩 0으로 설정
+      padding: EdgeInsets.zero,
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        // 여기에서 테두리를 정의
+        border: Border.all(
+          color: Colors.grey[800]!, // 테두리 색상
+          width: 0.0, // 테두리 두께
+        ),
+        color: Colors.transparent, // 컨테이너 배경색을 투명하게 설정
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        formattedText, // rareText, // Display the rare text here
+        style: textStyle,
+        textAlign: textAlignment,
+      ),
+    );
   }
 
-
-  Future<bool?> _saveImageToGallery() async {
-    if (_imageBytes == null) return false;
+  Future<bool?> _saveImageToGallery(Uint8List? imageBytes) async {
+    if (imageBytes == null) return false;
     final tempDir = await getTemporaryDirectory();
     final file =
-        await File('${tempDir.path}/image.png').writeAsBytes(_imageBytes!);
+        await File('${tempDir.path}/image.png').writeAsBytes(imageBytes);
     final result =
         await GallerySaver.saveImage(file.path, albumName: "YourAlbumName");
     print("이미지 저장 성공: $result");
@@ -307,32 +302,17 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               children: [
                 ElevatedButton(
                   onPressed: () {
-                    // 이미지를 캡처한 후, 갤러리에 저장. 순차적으로 실행.
-                    // 결과를 받아서 dialog로 표시
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _captureImage().then((_) {
-                        _saveImageToGallery().then((result) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: Text((result == true) ? "저장 성공" : "저장 실패"),
-                                content: Text((result == true)
-                                    ? "이미지를 저장했습니다."
-                                    : "이미지를 저장하는 데 실패했습니다."),
-                                actions: <Widget>[
-                                  TextButton(
-                                    child: Text("확인"),
-                                    onPressed: () {
-                                      Navigator.of(context).pop(); // 다이얼로그 닫기
-                                    },
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        });
-                      });
+                    var container = _textSticker(widget.width, widget.height,
+                        formattedText, textStyle, textAlignment);
+                    screenshotController
+                        .captureFromWidget(
+                      container,
+                      pixelRatio: 3.0,
+                      delay: Duration(milliseconds: 10),
+                    )
+                        .then((capturedImage) {
+                      _saveImageToGallery(capturedImage);
+                      ShowCapturedWidget(context, capturedImage);
                     });
                   },
                   // Text to display in the button and width, height of the green container
@@ -342,15 +322,15 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               ],
             ),
 
-            Center(
-              child: GestureDetector(
-                onTap: () {
-
-                },
-                  child: _buildCapturableWidget(
-                      widget.width, widget.height, formattedText, textStyle, textAlignment),
-              ),
-            ),
+            // Center(
+            //   child: GestureDetector(
+            //     onTap: () {
+            //
+            //     },
+            //       child: _textSticker(
+            //           widget.width, widget.height, formattedText, textStyle, textAlignment),
+            //   ),
+            // ),
             Divider(),
             Text(
               'Formatted Text:',
@@ -358,6 +338,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             ),
             Container(
               width: double.infinity,
+              color: Colors.yellow[100],
               child: Text(formattedText, // Display the formatted text here
                   style: textStyle,
                   textAlign: textAlignment),
