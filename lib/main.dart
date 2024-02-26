@@ -555,7 +555,22 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
               onChanged: (newValue) {
                 Get.find<TextStyleController>().updateFontSize(newValue!.toDouble());
               },
-            )
+            ),
+            Divider(),
+            // DropDownButton for FontWeight
+            DropdownButton<FontWeight>(
+              value: Get.find<TextStyleController>().textStyle.value.fontWeight,
+              hint: Text("폰트두께 선택"),
+              items: <FontWeight>[FontWeight.w100, FontWeight.normal, FontWeight.bold, FontWeight.w900].map((FontWeight value) {
+                return DropdownMenuItem<FontWeight>(
+                  value: value,
+                  child: Text(value.toString()),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                Get.find<TextStyleController>().updateFontWeight(newValue!);
+              },
+            ),
           ],
         ),
       ),
