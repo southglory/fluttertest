@@ -146,8 +146,10 @@ class MyApp extends StatelessWidget {
               imageController.height = height;
 
               // Navigate to the SquareDetailsScreen and pass the width and height as arguments
-              final capturedImage = await Get.to(() => SquareDetailsScreen(width: width, height: height));
-              if (capturedImage!= null) {
+              final capturedImageBytes = await Get.to(() => SquareDetailsScreen(width: width, height: height));
+              if (capturedImageBytes!= null) {
+                // 이미지를 디코딩하여 ui.Image로 변환
+                final capturedImage = await decodeImageFromList(capturedImageBytes);
 
                 // 이미지를 보여주는 위젯에 이미지를 업데이트
                 imageController.updateImage(capturedImage);
@@ -402,7 +404,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       // ShowCapturedWidget(context, capturedImageBytes);
                       _saveImageToGallery(capturedImageBytes);
                       // get back to the main screen
-                      Navigator.pop(context, _capturedImage); // Pass the image bytes back
+                      Navigator.pop(context, capturedImageBytes); // Pass the image bytes back
                     });
                   },
                   // Text to display in the button and width, height of the green container
