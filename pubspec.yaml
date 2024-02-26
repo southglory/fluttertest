@@ -60,6 +60,32 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  fonts:
+    - family: Heumsinnaneunbanghak132
+      fonts:
+        - asset: fonts/Heumsinnaneunbanghak132.ttf
+          weight: 400
+    - family: Baedaruiminjokdohyeon
+      fonts:
+        - asset: fonts/Baedaruiminjokdohyeon.ttf
+          weight: 400
+    - family: Nanumgodik
+      fonts:
+        - asset: fonts/Nanumgodik.ttf
+          weight: 400
+    - family: Haeumbaramgaebi152
+      fonts:
+        - asset: fonts/Haeumbaramgaebi152.ttf
+          weight: 400
+    - family: RixBadasseugi
+      fonts:
+        - asset: fonts/RixBadasseugi.ttf
+          weight: 400
+    - family: RixGaebongbakdu
+      fonts:
+        - asset: fonts/RixGaebongbakdu.ttf
+          weight: 400
+
 
   # To add assets to your application, add an assets section, like this:
   # assets:

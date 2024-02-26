@@ -12,15 +12,11 @@ import 'package:screenshot/screenshot.dart';
 
 class TapController extends GetxController {
   var startStr = 'Tap Somewhere'.obs;
-  var endStr = ''.obs;
-  var dragStr = ''.obs; // Add this line for drag coordinates
+  var sizeStr = ''.obs; // 가로 및 세로 길이를 저장할 변수
   bool isDrawing = false;
 
   // starting point
   Offset? start;
-
-  // dragging point
-  Offset? drag;
 
   // ending point
   Offset? end;
@@ -32,9 +28,9 @@ class TapController extends GetxController {
 
   void reset() {
     start = null;
-    drag = null;
     end = null;
     isDrawing = false;
+    sizeStr.value = ''; // 사각형의 크기 문자열을 초기화
     updateUI();
   }
 
@@ -62,13 +58,14 @@ class TapController extends GetxController {
   }
 
   void updateDragPoint(Offset newDrag) {
-    dragStr.value = newDrag.toString();
-    drag = newDrag;
+    // newDrag와 start 사이의 거리의 절대값
+
+    sizeStr.value = 'Size: ${((newDrag.dx - start!.dx).abs()).toStringAsFixed(2)} x ${((newDrag.dy - start!.dy).abs()).toStringAsFixed(2)}'; // 사각형의 크기를 업데이트
+    end = newDrag;
     updateUI();
   }
 
   void updateEndingPoint(Offset newEnd) {
-    endStr.value = newEnd.toString();
     end = newEnd;
     updateUI();
   }
@@ -100,7 +97,70 @@ class ImageController extends GetxController {
   }
 }
 
+class TextStyleController extends GetxController {
+  // Reactive TextStyle variables
+  var textStyle = const TextStyle(
+    fontSize: 20, // Default fontSize
+    fontWeight: FontWeight.normal, // Default fontWeight
+    fontFamily: '나눔고딕', // Default fontFamily
+  ).obs;
+
+  // Method to update the entire TextStyle
+  void updateTextStyle(TextStyle style) {
+    textStyle.value = style;
+  }
+
+  // Helper methods to update specific style attributes
+  void updateFontFamily(String fontFamily) {
+    textStyle.update((val) {
+      textStyle.value = textStyle.value.copyWith(fontFamily: fontFamily);
+    });
+  }
+
+  void updateFontSize(double fontSize) {
+    textStyle.update((val) {
+      textStyle.value = textStyle.value.copyWith(fontSize: fontSize);
+    });
+  }
+
+  void updateFontWeight(FontWeight fontWeight) {
+    textStyle.update((val) {
+      textStyle.value = textStyle.value.copyWith(fontWeight: fontWeight);
+    });
+  }
+
+  void updateTextStyleAttributes({
+    String? fontFamily,
+    double? fontSize,
+    FontWeight? fontWeight,
+  }) {
+    textStyle.update((val) {
+      textStyle.value = textStyle.value.copyWith(
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+      );
+    });
+  }
+}
+
+class TextEditController extends GetxController {
+  var rareText = ''.obs;
+  var formattedText = ''.obs;
+  // If textStyle and textAlignment might change and need to be reactive, define them here as well.
+  // For simplicity, let's assume they're static in this example.
+
+  // Method to update text; call this method when the text changes.
+  void updateText(String newRareText, String newFormattedText) {
+    rareText.value = newRareText;
+    formattedText.value = newFormattedText;
+  }
+
+// Add any other methods to manipulate the state as needed.
+}
+
 void main() {
+  Get.lazyPut(() => TextStyleController()); // Lazy initialization of TextStyleController
   runApp(MyApp());
 }
 
@@ -155,7 +215,7 @@ class MyApp extends StatelessWidget {
                 imageController.updateImage(capturedImage);
                 print('이미지 업데이트');
               }else{
-                print('이미지 업데이트 실패');
+                print('이미지 업데이트 실패: 캡처하지 않았음.');
               }
             }
           },
@@ -170,9 +230,7 @@ class MyApp extends StatelessWidget {
                     children: [
                       Text("Start: ${_.startStr.value}"),
                       SizedBox(height: 20),
-                      Text("Drag: ${_.dragStr.value}"),
-                      SizedBox(height: 20),
-                      Text("End: ${_.endStr.value}"),
+                      Text("Size: ${_.sizeStr.value}"), // 사각형의 크기를 출력
                     ],
                   ),
                 ),
@@ -271,7 +329,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   String rareText = ""; // State variable for holding rare text
   String formattedText = ""; // State variable for holding formatted text
 
-  final double fontSizeDefault = 80;
+  final double fontSizeDefault = 20;
   final FontWeight fontWeightDefault = FontWeight.bold;
 
   // Initialize textStyle using the default font size and weight
@@ -340,6 +398,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   void initState() {
     super.initState();
     _textController.addListener(textChanged);
+    Get.put(TextEditController()); // 텍스트 에딧 컨트롤러를 의존성으로 추가
+    Get.put(TextStyleController()); // 폰트 컨트롤러를 의존성으로 추가
   }
 
   void textChanged() {
@@ -351,6 +411,8 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
   void dispose() {
     _textController.removeListener(textChanged);
     _textController.dispose();
+    Get.delete<TextEditController>(); // 텍스트 에딧 컨트롤러를 삭제
+    Get.delete<TextStyleController>(); // 폰트 컨트롤러를 삭제
     super.dispose();
   }
 
@@ -365,11 +427,13 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
       fontSize: deviceScaledFontSize,
       fontWeight: fontWeightDefault,
       color: Colors.grey[800],
-      height: 1.0,
+      height: 1.2,
       letterSpacing: null,
       // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
       wordSpacing: null, // 디폴트와 같다. 명시적으로 표시하기 위해 추가함.
     );
+    // 폰트 컨트롤러에 폰트 스타일을 업데이트.
+    Get.find<TextStyleController>().updateTextStyle(textStyle);
 
     return Scaffold(
       appBar: AppBar(title: Text('Square Details')),
@@ -388,7 +452,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     var container = _textSticker(widget.width, widget.height,
-                        formattedText, textStyle, textAlignment);
+                        Get.find<TextEditController>().formattedText.value, Get.find<TextStyleController>().textStyle.value, textAlignment);
                     screenshotController
                         .captureFromWidget(
                       container,
@@ -404,7 +468,7 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
                       // ShowCapturedWidget(context, capturedImageBytes);
                       _saveImageToGallery(capturedImageBytes);
                       // get back to the main screen
-                      Navigator.pop(context, capturedImageBytes); // Pass the image bytes back
+                      // Navigator.pop(context, capturedImageBytes); // Pass the image bytes back
                     });
                   },
                   // Text to display in the button and width, height of the green container
@@ -431,33 +495,67 @@ class _SquareDetailsScreenState extends State<SquareDetailsScreen> {
             Container(
               width: double.infinity,
               color: Colors.yellow[100],
-              child: Text(formattedText, // Display the formatted text here
-                  style: textStyle,
-                  textAlign: textAlignment),
+              child: Obx(() => Text(
+                Get.find<TextEditController>().formattedText.value, // Use formattedText from controller
+                // Assuming textStyle and textAlignment are not reactive for this example
+                style: Get.find<TextStyleController>().textStyle.value,
+                textAlign: textAlignment,
+              )),
             ),
             Divider(),
             Padding(
               padding: EdgeInsets.all(16.0),
-              child: LineBreaksTrackingTextField(
-                controller: _textController,
-                maxLength: 1000,
-                labelText: 'Enter Text',
-                width: widget.width,
-                height: widget.height,
-                textStyle: textStyle,
-                textAlign: textAlignment,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
-                maxLengthEnforcement: MaxLengthEnforcement.none,
-                onTextChanged: (String newRareText, String newFormattedText) {
-                  // 여기에서 상태를 업데이트합니다.
-                  setState(() {
-                    rareText = newRareText;
-                    formattedText = newFormattedText;
-                  });
-                },
-              ),
+              child: Obx(() {
+                // Access textStyle reactively
+                TextStyle currentStyle = Get.find<TextStyleController>().textStyle.value;
+
+                return LineBreaksTrackingTextField(
+                  controller: _textController,
+                  maxLength: 1000,
+                  labelText: 'Enter Text',
+                  width: widget.width,
+                  height: widget.height,
+                  textStyle: currentStyle, // Use the reactive textStyle
+                  textAlign: textAlignment,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  onTextChanged: (String newRareText, String newFormattedText) {
+                    // Update state when text changes
+                    Get.find<TextEditController>().updateText(newRareText, newFormattedText);
+                  },
+                );
+              }),
             ),
+
+            Divider(),
+            DropdownButton<String>(
+              value: Get.find<TextStyleController>().textStyle.value.fontFamily,
+              hint: Text("폰트 선택"),
+              items: <String>['Heumsinnaneunbanghak132', 'Baedaruiminjokdohyeon', 'Nanumgodik', 'Haeumbaramgaebi152', 'RixBadasseugi', 'RixGaebongbakdu'].map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                Get.find<TextStyleController>().updateFontFamily(newValue!);
+              },
+            ),
+            Divider(),
+            DropdownButton<int>(
+              value: Get.find<TextStyleController>().textStyle.value.fontSize!.toInt(),
+              hint: Text("폰트사이즈 선택"),
+              items: <int>[8, 16, 22, 32, 40, 52].map((int value) {
+                return DropdownMenuItem<int>(
+                  value: value,
+                  child: Text(value.toString()),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                Get.find<TextStyleController>().updateFontSize(newValue!.toDouble());
+              },
+            )
           ],
         ),
       ),
@@ -506,7 +604,14 @@ class LineBreaksTrackingTextField extends StatefulWidget {
 
 class _LineBreaksTrackingTextFieldState
     extends State<LineBreaksTrackingTextField> {
-  void _handleTextChange() {
+  late final TextStyleController _textStyleController;
+  late Rx<TextStyle> _textStyle;
+  String formattedText = ""; // State variable for holding formatted text
+
+  void _handleTextChange(TextStyle textStyle) {
+    // print font size
+    print('-----------------');
+    print('font size: ${textStyle.fontSize}');
     String text = widget.controller.text;
 
     String LoremIpsum =
@@ -514,18 +619,29 @@ class _LineBreaksTrackingTextFieldState
         "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n"
         "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n"
         "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.";
-    // 여기서 사용자 입력 뒤에 "(LoremIpsum)"를 추가합니다.
-    String rareText = "$text(${LoremIpsum})";
+
+    String KoreaNationalAnthem = "동해물과 백두산이 마르고 닳도록\n"
+        "하느님이 보우하사 우리나라 만세.\n"
+        "무궁화 삼천리 화려강산 대한사람,\n"
+        "대한으로 길이 보전하세.";
+
+    String ganadara = "가나다라마바사아자차카타파하";
+
+    // 여기서 사용자 입력 뒤에 "(KoreaNationalAnthem)"를 추가합니다.
+    // width,height 도 추가한다.
+    String rareText = text + "(${widget.width}x${widget.height})" + "\n" + "(${KoreaNationalAnthem})" + "\n" + "(${ganadara})";
+
+    print('rareText: $rareText');
 
     // 현재 텍스트에서 수동 줄바꿈 위치 찾기
     List<int> manualBreaks = _findManualLineBreaks(rareText);
 
     // 컨테이너 높이에 마진을 추가하여 컨테이너 높이를 계산
     double containerHeightWithMargin =
-        widget.height - widget.textStyle!.fontSize! * 0.5;
+        widget.height - textStyle.fontSize! * 0.5; // 폰트 높이의 2배만큼 마진을 추가
 
     // 최대 줄 수를 예상하고, 수동 줄바꿈에 의한 줄 수가 최대 줄 수를 넘어가지 않도록 rareText를 우선 제한. 자동 줄바꿈 계산 부하를 줄이기 위해 먼저 적용한 것.
-    int maxLines = _getMaxLines(containerHeightWithMargin, widget.textStyle!);
+    int maxLines = _getMaxLines(containerHeightWithMargin, textStyle);
     LineBreakResult maxLineBreakResult =
         _restrictTextLines(rareText, manualBreaks, maxLines);
 
@@ -534,17 +650,17 @@ class _LineBreaksTrackingTextFieldState
         maxLineBreakResult.formattedText, maxLineBreakResult.breakPositions);
 
     // Widget의 너비에 폰트의 너비만큼의 여유 공간을 뺀 값을 컨테이너 너비로 설정
-    double containerWidth = widget.width - widget.textStyle!.fontSize! * 2;
+    double containerWidth = widget.width - textStyle.fontSize! * 0.5;
 
     // 내부적으로 자동 줄바꿈 위치를 추정하고, 줄바꿈을 삽입.
     LineBreakResult lineBreakResult = _estimateAndInsertLineBreaks(
         tabResult.formattedText,
         tabResult.breakPositions,
-        widget.textStyle!,
+        textStyle,
         containerWidth);
 
     // // lineBreakResult.formattedText의 높이를 textPainter로 계산하여, containerHeight보다 크면 마지막 줄부터 차례로 제거하여 허용되는 높이까지 줄이는 함수.
-    // LineBreakResult lineBreakResultFinal = _reduceLinesToContainerHeight(lineBreakResult.formattedText, lineBreakResult.breakPositions, containerHeightWithMargin, widget.textStyle!);
+    // LineBreakResult lineBreakResultFinal = _reduceLinesToContainerHeight(lineBreakResult.formattedText, lineBreakResult.breakPositions, containerHeightWithMargin, _textStyle.value!);
 
     // 최종적으로 텍스트 필드에 표시할 줄바꿈되고 제한된 텍스트를 가져옴.
     LineBreakResult maxLineBreakResultFinal = _restrictTextLines(
@@ -555,6 +671,10 @@ class _LineBreaksTrackingTextFieldState
     // print('lineBreakResultFinal: ${lineBreakResultFinal.breakPositions}');
     print('maxLineBreakResultFinal: ${maxLineBreakResultFinal.breakPositions}');
 
+    setState(() {
+      formattedText = maxLineBreakResultFinal.formattedText;
+    });
+
     // 상위 위젯의 콜백 함수를 호출하여 변경된 텍스트를 전달합니다.
     widget.onTextChanged(rareText, maxLineBreakResultFinal.formattedText);
   }
@@ -562,31 +682,43 @@ class _LineBreaksTrackingTextFieldState
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_handleTextChange);
+    _textStyleController = Get.find<TextStyleController>();
+
+    // 텍스트 컨트롤러 변경 감지
+    widget.controller.addListener(() => _handleTextChange(_textStyleController.textStyle.value));
+
+    // TextStyleController의 textStyle 변화를 관찰합니다.
+    _textStyle = Rx<TextStyle>(_textStyleController.textStyle.value);
+
+    // TextStyle이 변경될 때마다 _handleTextChange를 호출합니다.
+    ever(_textStyleController.textStyle, (TextStyle newStyle) => _handleTextChange(newStyle));
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_handleTextChange);
+    widget.controller.removeListener(() => _handleTextChange(_textStyle.value));
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: widget.controller,
-      maxLength: widget.maxLength,
-      maxLines: null,
-      // 멀티라인 입력을 허용
-      keyboardType: widget.keyboardType,
-      textInputAction: widget.textInputAction,
-      decoration: InputDecoration(
-        border: OutlineInputBorder(),
-        labelText: widget.labelText,
-      ),
-      style: widget.textStyle,
-      maxLengthEnforcement: widget.maxLengthEnforcement,
-    );
+    return Obx(() {
+      final currentStyle = _textStyleController.textStyle.value;
+      return TextField(
+        controller: widget.controller,
+        maxLength: widget.maxLength,
+        maxLines: null,
+        // 멀티라인 입력을 허용
+        keyboardType: widget.keyboardType,
+        textInputAction: widget.textInputAction,
+        decoration: InputDecoration(
+          border: OutlineInputBorder(),
+          labelText: widget.labelText,
+        ),
+        style: currentStyle, // Use the reactive textStyle
+        maxLengthEnforcement: widget.maxLengthEnforcement,
+      );
+    });
   }
 
   List<int> _findManualLineBreaks(String text) {
@@ -810,7 +942,10 @@ class _LineBreaksTrackingTextFieldState
     // 마지막 줄바꿈 인덱스를 제거
     adjustedBreakPositions.removeLast();
     // 적용텍스트에서 마지막 줄바꿈 문자 제거
-    adjustedText = adjustedText.substring(0, adjustedText.length - 1);
+    // If the last character is a line break, remove it
+    if (adjustedText.endsWith('\n')) {
+      adjustedText = adjustedText.substring(0, adjustedText.length - 1);
+    }
 
     print('adjustedBreakPositions: $adjustedBreakPositions');
     print('adjustedText: $adjustedText');
